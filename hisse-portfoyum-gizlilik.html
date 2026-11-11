@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Hisse Portföyüm uygulamasının gizlilik politikası ve veri işleme açıklamaları.">
+  <meta name="theme-color" content="#0b1220">
+  <title>Hisse Portföyüm | Gizlilik Politikası</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap header-inner">
+      <a class="brand" href="index.html" aria-label="EaziloDev ana sayfa">
+        <span class="brand-mark" aria-hidden="true">E</span>
+        <span>EaziloDev</span>
+      </a>
+      <nav aria-label="Sayfa menüsü">
+        <a href="#toplanan-veriler">İşlenen veriler</a>
+        <a href="#saklama-silme">Saklama ve silme</a>
+        <a href="#iletisim">İletişim</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="top">
+    <section class="section">
+      <article class="wrap prose">
+        <p class="eyebrow">Gizlilik Politikası</p>
+        <h1 style="font-size:clamp(2.35rem,5vw,4.4rem)">Hisse Portföyüm</h1>
+        <p class="lead">Bu politika, Hisse Portföyüm Android uygulamasında hangi verilerin hangi amaçlarla işlendiğini açıklar.</p>
+        <p class="updated"><strong>Son güncelleme:</strong> 11 Kasım 2026</p>
+
+        <div class="notice">
+          <strong>Kısa özet:</strong> Uygulama kullanıcı hesabı oluşturmaz; ad, soyad, telefon numarası, e-posta adresi, kesin konum, rehber veya aracı kurum giriş bilgisi istemez. Portföy ve bildirim özelliklerini sunabilmek için aşağıda açıklanan sınırlı teknik ve finansal verileri işler.
+        </div>
+
+        <h2 id="toplanan-veriler">İşlenen veriler</h2>
+
+        <h3>1. Portföy ve işlem bilgileri</h3>
+        <p>Kullanıcının uygulamaya kendisinin girdiği hisse kodu, lot adedi, halka arz veya alış fiyatı ile aynı güne ait satış tarihi, satış adedi ve satış fiyatı gibi portföy/işlem bilgileri cihazda saklanır. Fiyat, halka arz ve portföy bildirimlerinin çalışabilmesi için bu bilgilerin gerekli bölümü bildirim altyapısına gönderilebilir ve anonim kurulum kaydıyla ilişkilendirilebilir.</p>
+
+        <h3>2. Bildirim tercihleri</h3>
+        <p>Bildirimlerin açık veya kapalı olması, fiyat değişim eşiği ve halka arz bildirimi tercihi gibi ayarlar; kullanıcının seçtiği bildirimleri sunabilmek için işlenir.</p>
+
+        <h3>3. Cihaz ve kurulum kimlikleri</h3>
+        <p>Uygulama, her kurulum için rastgele oluşturulan anonim bir kurulum kimliği ile Firebase Cloud Messaging tarafından sağlanan bildirim anahtarını işler. Bu bilgiler bildirimleri doğru uygulama kurulumuna ulaştırmak, bildirim kaydını güncel tutmak ve teknik güvenliği sağlamak için kullanılır. Bu kimlikler kullanıcının adı, e-posta adresi veya telefon numarasıyla eşleştirilmez.</p>
+
+        <h3>4. Uygulama içi aramalar ve piyasa verisi sorguları</h3>
+        <p>Hisse fiyatları, halka arz bilgileri ve şirket verilerini gösterebilmek için sorgulanan hisse kodları uygulamanın veri hizmetlerine veya üçüncü taraf piyasa veri sağlayıcılarına iletilebilir. Bu sorgular uygulamanın ilgili içeriği sunması amacıyla kullanılır.</p>
+
+        <h2>Kullanım amaçları</h2>
+        <p>Yukarıdaki veriler yalnızca şu amaçlarla işlenir:</p>
+        <ul>
+          <li>Portföy takibi ve uygulama özelliklerini çalıştırmak,</li>
+          <li>Fiyat, portföy ve halka arz bildirimlerini göndermek,</li>
+          <li>Piyasa verilerini ve şirket bilgilerini göstermek,</li>
+          <li>Hizmetin güvenliğini ve teknik sürekliliğini sağlamak.</li>
+        </ul>
+
+        <h2>Hizmet sağlayıcılar</h2>
+        <p>Uygulama; bildirim iletimi için Google Firebase Cloud Messaging'i, sunucu ve ağ altyapısı için teknik hizmet sağlayıcıları ve piyasa verilerini göstermek için veri sağlayıcılarını kullanabilir. Bu sağlayıcılar verileri yalnızca ilgili hizmeti EaziloDev adına sunmak için işler. Veriler reklam amacıyla satılmaz ve bağımsız pazarlama amacıyla paylaşılmaz.</p>
+
+        <h2>Aktarım ve güvenlik</h2>
+        <p>Uygulama ile sunucu hizmetleri arasındaki veri aktarımı HTTPS üzerinden şifrelenir. Sunucu kayıtları doğrudan kimlik bilgisi yerine anonim kurulum kimliğiyle tutulur. Bununla birlikte, hiçbir elektronik aktarım veya saklama yönteminin mutlak güvenlik sağlayamayacağı unutulmamalıdır.</p>
+
+        <h2 id="saklama-silme">Saklama ve silme</h2>
+        <p>Cihazdaki portföy verileri uygulama verileri temizlendiğinde veya uygulama kaldırıldığında cihazdan silinir. Bildirim hizmeti için sunucuya aktarılmış anonim kurulum kaydı ve bildirim anahtarı, bildirim hizmetini sağlamak ve teknik kayıtları güncel tutmak için gerekli olduğu sürece saklanabilir. Geçersiz hâle gelen bildirim anahtarları sistem tarafından temizlenebilir.</p>
+        <p>Uygulamada şu anda sunucudaki anonim kaydı kullanıcı tarafından anında silecek ayrı bir hesap veya uygulama içi silme aracı bulunmaz. Uygulamanın kaldırılması, sunucudaki anonim kaydın aynı anda silineceği anlamına gelmeyebilir. Gizlilik veya veri silme talebiyle ilgili sorular için aşağıdaki iletişim adresine başvurabilirsiniz; teknik olarak doğrulanabilen talepler yürürlükteki mevzuata göre değerlendirilir.</p>
+
+        <h2>Toplanmayan bilgiler</h2>
+        <p>Uygulama kullanıcı hesabı oluşturmaz; kullanıcının adını, soyadını, telefon numarasını, e-posta adresini, fiziksel adresini, kesin konumunu, kişi listesini, mesajlarını, fotoğraflarını, sağlık verilerini, banka veya aracı kurum şifresini ve ödeme kartı bilgilerini talep etmez.</p>
+
+        <h2>Çocukların gizliliği</h2>
+        <p>Hisse Portföyüm çocuklara yönelik bir uygulama değildir. Bilerek çocuklardan doğrudan kimlik bilgisi talep edilmez.</p>
+
+        <h2>Politika değişiklikleri</h2>
+        <p>Uygulamanın özellikleri veya veri işleme yöntemleri değişirse bu politika güncellenebilir. Güncel sürüm bu sayfada yayımlanır ve son güncelleme tarihi değiştirilir.</p>
+
+        <h2 id="iletisim">İletişim</h2>
+        <p>Gizlilikle ilgili soru veya talepleriniz için <a href="mailto:eazilodevp@gmail.com">eazilodevp@gmail.com</a> adresine yazabilirsiniz.</p>
+
+        <div class="notice">
+          <strong>Finansal bilgilendirme:</strong> Hisse Portföyüm bir banka veya aracı kurum değildir; kullanıcı adına alım-satım emri gerçekleştirmez ve yatırım tavsiyesi sunmaz. Uygulamadaki bilgiler ve hesaplamalar yalnızca bilgilendirme amaçlıdır.
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap footer-inner">
+      <span>© 2026 EaziloDev</span>
+      <a href="index.html">Ana sayfaya dön</a>
+    </div>
+  </footer>
+</body>
+</html>
