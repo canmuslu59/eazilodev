@@ -176,20 +176,6 @@ public class MainActivity extends Activity {
 
         addGap(14);
 
-        if (!notificationSetupComplete()) {
-            LinearLayout warn = roundedCard(WARNING_BG, WARNING_BORDER, 18);
-            LinearLayout row = new LinearLayout(this);
-            row.setOrientation(LinearLayout.HORIZONTAL);
-            row.setGravity(Gravity.CENTER_VERTICAL);
-            TextView t = tv("Bildirim güvencesi", 14, TEXT, true);
-            row.addView(t, new LinearLayout.LayoutParams(0, -2, 1));
-            TextView setup = chip("Ayarla", SAFETY, Color.WHITE);
-            setup.setOnClickListener(v -> openNotificationReliabilitySetup());
-            row.addView(setup);
-            warn.addView(row);
-            addCard(warn);
-        }
-
         int overdue = 0, dueSoon = 0, fieldDue = 0;
         long now = System.currentTimeMillis();
         long week = now + 7L * 24 * 60 * 60 * 1000;
@@ -981,7 +967,7 @@ public class MainActivity extends Activity {
 
     private Button secondaryButton(String text,View.OnClickListener l){
         Button b=new Button(this);
-        b.setText(text); b.setTextColor(SAFETY_DARK); b.setTextSize(14); b.setAllCaps(false);
+        b.setText(text); b.setTextColor(darkMode ? Color.rgb(190,210,255) : SAFETY_DARK); b.setTextSize(14); b.setAllCaps(false);
         b.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
         b.setBackground(pressStateBg(CARD, PRESSED_BG, SAFETY, 16));
         b.setElevation(dp(2));
