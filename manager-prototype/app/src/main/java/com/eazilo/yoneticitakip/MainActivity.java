@@ -27,18 +27,9 @@ public class MainActivity extends Activity {
     private static final int REQ_CAMERA = 40;
     private static final int REQ_NOTIF = 41;
 
-    private final int BG = Color.rgb(247, 247, 244);
-    private final int CARD = Color.WHITE;
-    private final int TEXT = Color.rgb(24, 24, 22);
-    private final int MUTED = Color.rgb(117, 117, 110);
-    private final int BORDER = Color.rgb(228, 228, 222);
-    private final int DARK = Color.rgb(25, 25, 23);
-    private final int GREEN = Color.rgb(38, 137, 91);
-    private final int RED = Color.rgb(196, 64, 57);
-    private final int AMBER = Color.rgb(174, 111, 31);
-    private final int BLUE = Color.rgb(69, 95, 184);
-    private final int SAFETY = Color.rgb(38, 91, 174);
-    private final int SAFETY_DARK = Color.rgb(27, 67, 132);
+    private int BG, CARD, TEXT, MUTED, BORDER, DARK, GREEN, RED, AMBER, BLUE, SAFETY, SAFETY_DARK;
+    private int SURFACE_ALT, INPUT_BG, HINT, PRESSED_BG, CHIP_BG, CHIP_PRESSED, WARNING_BG, WARNING_BORDER;
+    private boolean darkMode;
 
     private SharedPreferences prefs;
     private JSONArray tasks = new JSONArray();
@@ -51,14 +42,12 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        getWindow().setStatusBarColor(BG);
-        getWindow().setNavigationBarColor(BG);
-        if (Build.VERSION.SDK_INT >= 23) {
-            getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
-        }
-
         prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
+        applyPalette();
+        setTheme(darkMode ? android.R.style.Theme_Material_NoActionBar : android.R.style.Theme_Material_Light_NoActionBar);
+        super.onCreate(savedInstanceState);
+        updateSystemBars();
+
         createNotificationChannel();
         requestNotificationPermissionIfNeeded();
         loadData();
@@ -88,8 +77,7 @@ public class MainActivity extends Activity {
             getWindow().getDecorView().setSystemUiVisibility(
                     View.SYSTEM_UI_FLAG_LAYOUT_STABLE |
                     View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN |
-                    View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION |
-                    View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
+                    View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
         }
 
         LinearLayout header = new LinearLayout(this);
@@ -101,11 +89,12 @@ public class MainActivity extends Activity {
         TextView brand = tv("Önce Güvenlik", 22, TEXT, true);
         header.addView(brand, new LinearLayout.LayoutParams(0, -2, 1));
 
-        TextView bell = chip("◉", DARK, Color.WHITE);
-        bell.setGravity(Gravity.CENTER);
-        bell.setTextSize(15);
-        bell.setOnClickListener(v -> openNotificationReliabilitySetup());
-        header.addView(bell, new LinearLayout.LayoutParams(dp(42), dp(38)));
+        TextView settings = chip("⚙", SAFETY, Color.WHITE);
+        settings.setGravity(Gravity.CENTER);
+        settings.setTextSize(18);
+        settings.setContentDescription("Ayarlar");
+        settings.setOnClickListener(v -> showSettingsDialog());
+        header.addView(settings, new LinearLayout.LayoutParams(dp(44), dp(40)));
         root.addView(header, new LinearLayout.LayoutParams(-1, -2));
 
         ScrollView scroller = new ScrollView(this);
@@ -157,7 +146,7 @@ public class MainActivity extends Activity {
     private TextView navButton(String label, String page) {
         TextView v = tv(label, 13, TEXT, true);
         v.setGravity(Gravity.CENTER);
-        v.setBackground(pressStateBg(Color.TRANSPARENT, Color.rgb(228,235,248), 0, 16));
+        v.setBackground(pressStateBg(Color.TRANSPARENT, PRESSED_BG, 0, 16));
         makePressable(v, false);
         v.setOnClickListener(x -> {
             currentPage = page;
@@ -184,13 +173,13 @@ public class MainActivity extends Activity {
         addGap(14);
 
         if (!notificationSetupComplete()) {
-            LinearLayout warn = roundedCard(Color.rgb(252, 248, 235), Color.rgb(238, 220, 170), 18);
+            LinearLayout warn = roundedCard(WARNING_BG, WARNING_BORDER, 18);
             LinearLayout row = new LinearLayout(this);
             row.setOrientation(LinearLayout.HORIZONTAL);
             row.setGravity(Gravity.CENTER_VERTICAL);
             TextView t = tv("Bildirim güvencesi", 14, TEXT, true);
             row.addView(t, new LinearLayout.LayoutParams(0, -2, 1));
-            TextView setup = chip("Ayarla", DARK, Color.WHITE);
+            TextView setup = chip("Ayarla", SAFETY, Color.WHITE);
             setup.setOnClickListener(v -> openNotificationReliabilitySetup());
             row.addView(setup);
             warn.addView(row);
@@ -332,7 +321,7 @@ public class MainActivity extends Activity {
         head.setGravity(Gravity.CENTER_VERTICAL);
         TextView name=tv("Yeni iş",24,TEXT,true);
         head.addView(name,new LinearLayout.LayoutParams(0,-2,1));
-        TextView close=chip("×",Color.rgb(232,232,226),TEXT);
+        TextView close=chip("×",SURFACE_ALT,TEXT);
         close.setTextSize(19);
         close.setOnClickListener(v->dialog.dismiss());
         head.addView(close,new LinearLayout.LayoutParams(dp(40),dp(40)));
@@ -474,8 +463,8 @@ public class MainActivity extends Activity {
     private TextView reminderChip(int day, boolean selected){
         TextView c=tv(String.valueOf(day),18,selected?Color.WHITE:TEXT,true);
         c.setGravity(Gravity.CENTER);
-        int normal = selected ? SAFETY : Color.rgb(239,239,234);
-        int pressed = selected ? SAFETY_DARK : Color.rgb(220,226,238);
+        int normal = selected ? SAFETY : CHIP_BG;
+        int pressed = selected ? SAFETY_DARK : CHIP_PRESSED;
         c.setBackground(pressStateBg(normal, pressed, selected ? SAFETY_DARK : BORDER, 16));
         makePressable(c, true);
         return c;
@@ -593,7 +582,7 @@ public class MainActivity extends Activity {
             Bitmap b=BitmapFactory.decodeFile(path);
             if(b!=null){
                 ImageView img=new ImageView(this);img.setImageBitmap(b);img.setScaleType(ImageView.ScaleType.CENTER_CROP);
-                img.setBackground(roundRect(Color.LTGRAY,14));img.setClipToOutline(true);
+                img.setBackground(roundRect(SURFACE_ALT,14));img.setClipToOutline(true);
                 row.addView(img,new LinearLayout.LayoutParams(dp(78),dp(78)));
                 Space s=new Space(this);row.addView(s,new LinearLayout.LayoutParams(dp(12),1));
             }
@@ -695,6 +684,179 @@ public class MainActivity extends Activity {
                 label.setText(prefix+formatDateLong(target[0]));
             },cc.get(Calendar.HOUR_OF_DAY),cc.get(Calendar.MINUTE),true).show();
         },c.get(Calendar.YEAR),c.get(Calendar.MONTH),c.get(Calendar.DAY_OF_MONTH)).show();
+    }
+
+    private void showSettingsDialog(){
+        final Dialog dialog=new Dialog(this);
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+
+        LinearLayout shell=roundedCard(CARD,BORDER,24);
+        shell.setPadding(dp(20),dp(20),dp(20),dp(20));
+
+        LinearLayout head=new LinearLayout(this);
+        head.setGravity(Gravity.CENTER_VERTICAL);
+        head.addView(tv("Ayarlar",24,TEXT,true),new LinearLayout.LayoutParams(0,-2,1));
+        TextView close=chip("×",SURFACE_ALT,TEXT);
+        close.setTextSize(19);
+        close.setOnClickListener(v->dialog.dismiss());
+        head.addView(close,new LinearLayout.LayoutParams(dp(40),dp(40)));
+        shell.addView(head);
+
+        TextView appearance=tv("Görünüm",14,MUTED,true);
+        appearance.setPadding(0,dp(22),0,dp(10));
+        shell.addView(appearance);
+
+        String selected=prefs.getString("theme_mode","system");
+        LinearLayout themes=new LinearLayout(this);
+        themes.setOrientation(LinearLayout.HORIZONTAL);
+        themes.setGravity(Gravity.CENTER);
+        String[] labels={"Sistem","Açık","Karanlık"};
+        String[] modes={"system","light","dark"};
+        for(int i=0;i<modes.length;i++){
+            final String mode=modes[i];
+            boolean active=mode.equals(selected);
+            TextView choice=themeChoice(labels[i],active);
+            choice.setOnClickListener(v->{
+                prefs.edit().putString("theme_mode",mode).apply();
+                dialog.dismiss();
+                recreate();
+            });
+            themes.addView(choice,new LinearLayout.LayoutParams(0,dp(48),1));
+            if(i<modes.length-1){
+                Space gap=new Space(this);
+                themes.addView(gap,new LinearLayout.LayoutParams(dp(7),1));
+            }
+        }
+        shell.addView(themes);
+
+        TextView reminders=tv("Bildirimler ve hatırlatmalar",14,MUTED,true);
+        reminders.setPadding(0,dp(24),0,dp(10));
+        shell.addView(reminders);
+
+        LinearLayout notifyCard=roundedCard(SURFACE_ALT,BORDER,18);
+        notifyCard.setPadding(dp(14),dp(14),dp(14),dp(14));
+        LinearLayout statusRow=new LinearLayout(this);
+        statusRow.setGravity(Gravity.CENTER_VERTICAL);
+        statusRow.addView(tv("Hatırlatma sistemi",15,TEXT,true),new LinearLayout.LayoutParams(0,-2,1));
+        boolean ready=notificationSetupComplete();
+        TextView status=smallTag(ready?"HAZIR":"AYAR GEREKİYOR",ready?GREEN:AMBER);
+        statusRow.addView(status);
+        notifyCard.addView(statusRow);
+
+        Button notify=primaryButton("Bildirim ve hatırlatma ayarları",v->{
+            dialog.dismiss();
+            openNotificationReliabilitySetup();
+        });
+        LinearLayout.LayoutParams nlp=new LinearLayout.LayoutParams(-1,dp(50));
+        nlp.setMargins(0,dp(14),0,0);
+        notifyCard.addView(notify,nlp);
+        shell.addView(notifyCard);
+
+        dialog.setContentView(shell);
+        Window w=dialog.getWindow();
+        if(w!=null){
+            w.setBackgroundDrawableResource(android.R.color.transparent);
+            w.setDimAmount(0.48f);
+            w.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+        }
+        dialog.setOnShowListener(x->{
+            Window ww=dialog.getWindow();
+            if(ww!=null){
+                WindowManager.LayoutParams lp=ww.getAttributes();
+                lp.width=(int)(getResources().getDisplayMetrics().widthPixels*0.92f);
+                lp.height=WindowManager.LayoutParams.WRAP_CONTENT;
+                ww.setAttributes(lp);
+            }
+        });
+        dialog.show();
+    }
+
+    private TextView themeChoice(String label,boolean selected){
+        TextView t=tv(label,13,selected?Color.WHITE:TEXT,true);
+        t.setGravity(Gravity.CENTER);
+        t.setBackground(pressStateBg(
+                selected?SAFETY:SURFACE_ALT,
+                selected?SAFETY_DARK:PRESSED_BG,
+                selected?SAFETY_DARK:BORDER,
+                15));
+        makePressable(t,true);
+        return t;
+    }
+
+    private void applyPalette(){
+        String mode=prefs==null?"system":prefs.getString("theme_mode","system");
+        boolean systemDark=(getResources().getConfiguration().uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK)
+                == android.content.res.Configuration.UI_MODE_NIGHT_YES;
+        darkMode="dark".equals(mode) || ("system".equals(mode) && systemDark);
+
+        if(darkMode){
+            BG=Color.rgb(17,19,23);
+            CARD=Color.rgb(27,30,36);
+            TEXT=Color.rgb(245,247,250);
+            MUTED=Color.rgb(183,190,201);
+            BORDER=Color.rgb(58,64,75);
+            DARK=Color.rgb(38,91,174);
+            GREEN=Color.rgb(88,205,143);
+            RED=Color.rgb(255,116,108);
+            AMBER=Color.rgb(245,184,80);
+            BLUE=Color.rgb(116,148,255);
+            SAFETY=Color.rgb(71,123,220);
+            SAFETY_DARK=Color.rgb(45,91,178);
+            SURFACE_ALT=Color.rgb(36,40,48);
+            INPUT_BG=Color.rgb(22,25,31);
+            HINT=Color.rgb(139,147,159);
+            PRESSED_BG=Color.rgb(51,59,73);
+            CHIP_BG=Color.rgb(44,49,58);
+            CHIP_PRESSED=Color.rgb(59,67,82);
+            WARNING_BG=Color.rgb(51,43,25);
+            WARNING_BORDER=Color.rgb(114,91,38);
+        }else{
+            BG=Color.rgb(247,247,244);
+            CARD=Color.WHITE;
+            TEXT=Color.rgb(24,24,22);
+            MUTED=Color.rgb(105,105,99);
+            BORDER=Color.rgb(222,224,228);
+            DARK=Color.rgb(25,25,23);
+            GREEN=Color.rgb(38,137,91);
+            RED=Color.rgb(196,64,57);
+            AMBER=Color.rgb(174,111,31);
+            BLUE=Color.rgb(69,95,184);
+            SAFETY=Color.rgb(38,91,174);
+            SAFETY_DARK=Color.rgb(27,67,132);
+            SURFACE_ALT=Color.rgb(239,240,242);
+            INPUT_BG=Color.rgb(250,250,247);
+            HINT=Color.rgb(139,139,132);
+            PRESSED_BG=Color.rgb(228,235,248);
+            CHIP_BG=Color.rgb(239,239,234);
+            CHIP_PRESSED=Color.rgb(220,226,238);
+            WARNING_BG=Color.rgb(252,248,235);
+            WARNING_BORDER=Color.rgb(238,220,170);
+        }
+    }
+
+    private void updateSystemBars(){
+        getWindow().setStatusBarColor(BG);
+        getWindow().setNavigationBarColor(BG);
+        if(Build.VERSION.SDK_INT>=30){
+            WindowInsetsController c=getWindow().getInsetsController();
+            if(c!=null){
+                int appearance=darkMode?0:
+                        WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS |
+                        WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS;
+                c.setSystemBarsAppearance(
+                        appearance,
+                        WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS |
+                        WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS);
+            }
+        }else if(Build.VERSION.SDK_INT>=26){
+            int flags=View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION;
+            if(!darkMode) flags|=View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+            getWindow().getDecorView().setSystemUiVisibility(flags);
+        }else if(Build.VERSION.SDK_INT>=23){
+            int flags=View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION;
+            if(!darkMode) flags|=View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+            getWindow().getDecorView().setSystemUiVisibility(flags);
+        }
     }
 
     private void createNotificationChannel(){
@@ -817,7 +979,7 @@ public class MainActivity extends Activity {
         Button b=new Button(this);
         b.setText(text); b.setTextColor(SAFETY_DARK); b.setTextSize(14); b.setAllCaps(false);
         b.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
-        b.setBackground(pressStateBg(Color.WHITE, Color.rgb(228,235,248), SAFETY, 16));
+        b.setBackground(pressStateBg(CARD, PRESSED_BG, SAFETY, 16));
         b.setElevation(dp(2));
         b.setOnClickListener(l);
         makePressable(b, true);
@@ -828,7 +990,7 @@ public class MainActivity extends Activity {
         Button b=new Button(this);
         b.setText(text); b.setTextColor(color); b.setTextSize(12); b.setAllCaps(false);
         b.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
-        b.setBackground(pressStateBg(Color.WHITE, withAlpha(color,0.12f), withAlpha(color,0.60f), 14));
+        b.setBackground(pressStateBg(CARD, withAlpha(color, darkMode ? 0.24f : 0.12f), withAlpha(color,0.65f), 14));
         b.setElevation(dp(2));
         b.setOnClickListener(l);
         makePressable(b, true);
@@ -853,7 +1015,7 @@ public class MainActivity extends Activity {
     }
 
     private int darken(int color,float factor){
-        if(color==Color.TRANSPARENT) return Color.rgb(228,235,248);
+        if(color==Color.TRANSPARENT) return PRESSED_BG;
         return Color.rgb(
                 Math.max(0,Math.min(255,Math.round(Color.red(color)*factor))),
                 Math.max(0,Math.min(255,Math.round(Color.green(color)*factor))),
@@ -875,9 +1037,9 @@ public class MainActivity extends Activity {
     }
 
     private EditText wizardInput(String hint){
-        EditText e=new EditText(this);e.setHint(hint);e.setTextSize(16);e.setTextColor(TEXT);e.setHintTextColor(Color.rgb(157,157,150));
+        EditText e=new EditText(this);e.setHint(hint);e.setTextSize(16);e.setTextColor(TEXT);e.setHintTextColor(HINT);
         e.setPadding(dp(14),dp(13),dp(14),dp(13));
-        GradientDrawable g=new GradientDrawable();g.setColor(Color.rgb(250,250,247));g.setCornerRadius(dp(16));g.setStroke(dp(1),BORDER);e.setBackground(g);return e;
+        GradientDrawable g=new GradientDrawable();g.setColor(INPUT_BG);g.setCornerRadius(dp(16));g.setStroke(dp(1),BORDER);e.setBackground(g);return e;
     }
 
     private LinearLayout dialogForm(){LinearLayout l=new LinearLayout(this);l.setOrientation(LinearLayout.VERTICAL);l.setPadding(dp(4),dp(4),dp(4),dp(8));return l;}
