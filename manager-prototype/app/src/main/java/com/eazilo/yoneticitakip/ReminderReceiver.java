@@ -10,19 +10,28 @@ public class ReminderReceiver extends BroadcastReceiver {
         String title = intent.getStringExtra("title");
         String body = intent.getStringExtra("body");
         int id = intent.getIntExtra("id", (int)(System.currentTimeMillis()%100000));
+
         Intent open = new Intent(context, MainActivity.class);
         open.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-        PendingIntent pi = PendingIntent.getActivity(context, id, open, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        PendingIntent pi = PendingIntent.getActivity(
+                context,id,open,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
+
         Notification.Builder b = Build.VERSION.SDK_INT >= 26
                 ? new Notification.Builder(context, "takip_hatirlatmalari")
                 : new Notification.Builder(context);
-        b.setSmallIcon(android.R.drawable.ic_dialog_info)
-         .setContentTitle(title == null ? "Takip hatırlatması" : title)
-         .setContentText(body == null ? "Kontrol zamanı yaklaşıyor." : body)
-         .setStyle(new Notification.BigTextStyle().bigText(body))
+
+        b.setSmallIcon(android.R.drawable.ic_popup_reminder)
+         .setContentTitle(title == null ? "Takip" : title)
+         .setContentText(body == null ? "Kontrol zamanı." : body)
+         .setStyle(new Notification.BigTextStyle().bigText(body == null ? "Kontrol zamanı." : body))
          .setAutoCancel(true)
          .setContentIntent(pi)
-         .setPriority(Notification.PRIORITY_HIGH);
-        ((NotificationManager)context.getSystemService(Context.NOTIFICATION_SERVICE)).notify(id, b.build());
+         .setCategory(Notification.CATEGORY_REMINDER)
+         .setVisibility(Notification.VISIBILITY_PUBLIC)
+         .setDefaults(Notification.DEFAULT_ALL)
+         .setPriority(Notification.PRIORITY_MAX);
+
+        NotificationManager nm=(NotificationManager)context.getSystemService(Context.NOTIFICATION_SERVICE);
+        if(nm!=null) nm.notify(id,b.build());
     }
 }
