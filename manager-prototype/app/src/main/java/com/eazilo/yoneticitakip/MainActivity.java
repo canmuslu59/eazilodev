@@ -74,10 +74,14 @@ public class MainActivity extends Activity {
         if (Build.VERSION.SDK_INT >= 30) {
             getWindow().setDecorFitsSystemWindows(false);
         } else {
-            getWindow().getDecorView().setSystemUiVisibility(
-                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE |
+            int uiFlags=View.SYSTEM_UI_FLAG_LAYOUT_STABLE |
                     View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN |
-                    View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
+                    View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION;
+            if(!darkMode){
+                uiFlags|=View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+                if(Build.VERSION.SDK_INT>=26) uiFlags|=View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+            }
+            getWindow().getDecorView().setSystemUiVisibility(uiFlags);
         }
 
         LinearLayout header = new LinearLayout(this);
