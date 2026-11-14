@@ -5,7 +5,7 @@ import android.app.*;
 import android.content.*;
 import android.content.pm.PackageManager;
 import android.graphics.*;
-import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.GradientDrawable;\nimport android.graphics.drawable.StateListDrawable;
 import android.net.Uri;
 import android.os.*;
 import android.provider.MediaStore;
@@ -35,7 +35,7 @@ public class MainActivity extends Activity {
     private final int GREEN = Color.rgb(38, 137, 91);
     private final int RED = Color.rgb(196, 64, 57);
     private final int AMBER = Color.rgb(174, 111, 31);
-    private final int BLUE = Color.rgb(69, 95, 184);
+    private final int BLUE = Color.rgb(69, 95, 184);\n    private final int SAFETY = Color.rgb(38, 91, 174);\n    private final int SAFETY_DARK = Color.rgb(27, 67, 132);
 
     private SharedPreferences prefs;
     private JSONArray tasks = new JSONArray();
@@ -95,7 +95,7 @@ public class MainActivity extends Activity {
         header.setPadding(dp(18), dp(12), dp(12), dp(10));
         header.setBackgroundColor(BG);
 
-        TextView brand = tv("takip_", 22, TEXT, true);
+        TextView brand = tv("Önce Güvenlik", 22, TEXT, true);
         header.addView(brand, new LinearLayout.LayoutParams(0, -2, 1));
 
         TextView bell = chip("◉", DARK, Color.WHITE);
@@ -152,8 +152,10 @@ public class MainActivity extends Activity {
     }
 
     private TextView navButton(String label, String page) {
-        TextView v = tv(label, 13, MUTED, true);
+        TextView v = tv(label, 13, TEXT, true);
         v.setGravity(Gravity.CENTER);
+        v.setBackground(pressStateBg(Color.TRANSPARENT, Color.rgb(228,235,248), 0, 16));
+        makePressable(v, false);
         v.setOnClickListener(x -> {
             currentPage = page;
             if ("home".equals(page)) showHome();
@@ -469,7 +471,10 @@ public class MainActivity extends Activity {
     private TextView reminderChip(int day, boolean selected){
         TextView c=tv(String.valueOf(day),18,selected?Color.WHITE:TEXT,true);
         c.setGravity(Gravity.CENTER);
-        c.setBackground(roundRect(selected?DARK:Color.rgb(239,239,234),16));
+        int normal = selected ? SAFETY : Color.rgb(239,239,234);
+        int pressed = selected ? SAFETY_DARK : Color.rgb(220,226,238);
+        c.setBackground(pressStateBg(normal, pressed, selected ? SAFETY_DARK : BORDER, 16));
+        makePressable(c, true);
         return c;
     }
 
@@ -776,7 +781,12 @@ public class MainActivity extends Activity {
     private void addMargins(View v){LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.setMargins(0,0,0,dp(10));v.setLayoutParams(lp);}
 
     private TextView chip(String text,int bg,int fg){
-        TextView t=tv(text,13,fg,true);t.setGravity(Gravity.CENTER);t.setPadding(dp(13),dp(8),dp(13),dp(8));t.setBackground(roundRect(bg,18));return t;
+        TextView t=tv(text,13,fg,true);
+        t.setGravity(Gravity.CENTER);
+        t.setPadding(dp(13),dp(8),dp(13),dp(8));
+        t.setBackground(pressStateBg(bg, darken(bg,0.80f), darken(bg,0.72f), 18));
+        makePressable(t, true);
+        return t;
     }
 
     private TextView smallTag(String text,int color){
@@ -790,17 +800,75 @@ public class MainActivity extends Activity {
     private int withAlpha(int color,float a){return Color.argb(Math.round(255*a),Color.red(color),Color.green(color),Color.blue(color));}
 
     private Button primaryButton(String text,View.OnClickListener l){
-        Button b=new Button(this);b.setText(text);b.setTextColor(Color.WHITE);b.setTextSize(14);b.setAllCaps(false);b.setTypeface(Typeface.DEFAULT,Typeface.BOLD);b.setBackground(roundRect(DARK,16));b.setOnClickListener(l);return b;
+        Button b=new Button(this);
+        b.setText(text); b.setTextColor(Color.WHITE); b.setTextSize(15); b.setAllCaps(false);
+        b.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
+        b.setBackground(pressStateBg(SAFETY, SAFETY_DARK, SAFETY_DARK, 16));
+        b.setElevation(dp(4));
+        b.setOnClickListener(l);
+        makePressable(b, true);
+        return b;
     }
 
     private Button secondaryButton(String text,View.OnClickListener l){
-        Button b=new Button(this);b.setText(text);b.setTextColor(TEXT);b.setTextSize(14);b.setAllCaps(false);b.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
-        GradientDrawable g=new GradientDrawable();g.setColor(CARD);g.setCornerRadius(dp(16));g.setStroke(dp(1),BORDER);b.setBackground(g);b.setOnClickListener(l);return b;
+        Button b=new Button(this);
+        b.setText(text); b.setTextColor(SAFETY_DARK); b.setTextSize(14); b.setAllCaps(false);
+        b.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
+        b.setBackground(pressStateBg(Color.WHITE, Color.rgb(228,235,248), SAFETY, 16));
+        b.setElevation(dp(2));
+        b.setOnClickListener(l);
+        makePressable(b, true);
+        return b;
     }
 
     private Button smallButton(String text,int color,View.OnClickListener l){
-        Button b=new Button(this);b.setText(text);b.setTextColor(color);b.setTextSize(12);b.setAllCaps(false);b.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
-        GradientDrawable g=new GradientDrawable();g.setColor(Color.WHITE);g.setCornerRadius(dp(14));g.setStroke(dp(1),withAlpha(color,0.35f));b.setBackground(g);b.setOnClickListener(l);return b;
+        Button b=new Button(this);
+        b.setText(text); b.setTextColor(color); b.setTextSize(12); b.setAllCaps(false);
+        b.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
+        b.setBackground(pressStateBg(Color.WHITE, withAlpha(color,0.12f), withAlpha(color,0.60f), 14));
+        b.setElevation(dp(2));
+        b.setOnClickListener(l);
+        makePressable(b, true);
+        return b;
+    }
+
+    private StateListDrawable pressStateBg(int normalColor,int pressedColor,int strokeColor,int radius){
+        StateListDrawable state=new StateListDrawable();
+        GradientDrawable pressed=new GradientDrawable();
+        pressed.setColor(pressedColor);
+        pressed.setCornerRadius(dp(radius));
+        if(strokeColor!=0) pressed.setStroke(dp(2),strokeColor);
+
+        GradientDrawable normal=new GradientDrawable();
+        normal.setColor(normalColor);
+        normal.setCornerRadius(dp(radius));
+        if(strokeColor!=0) normal.setStroke(dp(2),strokeColor);
+
+        state.addState(new int[]{android.R.attr.state_pressed},pressed);
+        state.addState(new int[]{},normal);
+        return state;
+    }
+
+    private int darken(int color,float factor){
+        if(color==Color.TRANSPARENT) return Color.rgb(228,235,248);
+        return Color.rgb(
+                Math.max(0,Math.min(255,Math.round(Color.red(color)*factor))),
+                Math.max(0,Math.min(255,Math.round(Color.green(color)*factor))),
+                Math.max(0,Math.min(255,Math.round(Color.blue(color)*factor))));
+    }
+
+    private void makePressable(View v, boolean elevate){
+        v.setClickable(true);
+        if(elevate && Build.VERSION.SDK_INT>=21) v.setElevation(dp(2));
+        v.setOnTouchListener((view,event)->{
+            if(event.getAction()==MotionEvent.ACTION_DOWN){
+                view.animate().scaleX(0.965f).scaleY(0.965f).alpha(0.88f).setDuration(65).start();
+                view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
+            }else if(event.getAction()==MotionEvent.ACTION_UP || event.getAction()==MotionEvent.ACTION_CANCEL){
+                view.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(95).start();
+            }
+            return false;
+        });
     }
 
     private EditText wizardInput(String hint){
