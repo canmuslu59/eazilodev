@@ -60,7 +60,15 @@ public class MainActivity extends Activity {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(BG);
-        if (Build.VERSION.SDK_INT >= 30) getWindow().setDecorFitsSystemWindows(true);
+        // Android 15+ edge-to-edge: sistem çubuklarının alanını biz yönetiyoruz.
+        if (Build.VERSION.SDK_INT >= 30) {
+            getWindow().setDecorFitsSystemWindows(false);
+        } else {
+            getWindow().getDecorView().setSystemUiVisibility(
+                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE |
+                    View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN |
+                    View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
+        }
 
         LinearLayout header = new LinearLayout(this);
         header.setPadding(dp(18), dp(14), dp(18), dp(12));
@@ -92,7 +100,58 @@ public class MainActivity extends Activity {
         nav.addView(navButton("⌖\nSaha", "field"), new LinearLayout.LayoutParams(0, -2, 1));
         nav.addView(navButton("▦\nŞubeler", "branches"), new LinearLayout.LayoutParams(0, -2, 1));
         root.addView(nav);
+        applySystemBarInsets(root, header, nav);
         setContentView(root);
+    }
+
+    private void applySystemBarInsets(View root, View header, View nav) {
+        final int headerLeft = dp(18);
+        final int headerTop = dp(14);
+        final int headerRight = dp(18);
+        final int headerBottom = dp(12);
+        final int navLeft = dp(4);
+        final int navTop = dp(5);
+        final int navRight = dp(4);
+        final int navBottom = dp(7);
+
+        root.setOnApplyWindowInsetsListener((v, insets) -> {
+            int left;
+            int top;
+            int right;
+            int bottom;
+
+            if (Build.VERSION.SDK_INT >= 30) {
+                Insets bars = insets.getInsets(WindowInsets.Type.systemBars());
+                left = bars.left;
+                top = bars.top;
+                right = bars.right;
+                bottom = bars.bottom;
+            } else {
+                left = insets.getSystemWindowInsetLeft();
+                top = insets.getSystemWindowInsetTop();
+                right = insets.getSystemWindowInsetRight();
+                bottom = insets.getSystemWindowInsetBottom();
+            }
+
+            header.setPadding(
+                    headerLeft + left,
+                    headerTop + top,
+                    headerRight + right,
+                    headerBottom
+            );
+
+            // Alt uygulama menüsü, Android'in 3 tuşlu veya gesture alanının üstünde kalır.
+            nav.setPadding(
+                    navLeft + left,
+                    navTop,
+                    navRight + right,
+                    navBottom + bottom
+            );
+
+            return insets;
+        });
+
+        root.requestApplyInsets();
     }
 
     private TextView navButton(String label, String page) {
@@ -334,7 +393,7 @@ public class MainActivity extends Activity {
         final long[] due = {System.currentTimeMillis() + 24L*60*60*1000};
         LinearLayout form = dialogForm();
         EditText title = input("İş başlığı");
-        EditText steps = input("İş adımları (örn. sayım → rapor → fotoğraf)"); steps.setMinLines(2);
+        EditText steps = input("İş adımları (örn. kontrol et → bilgi al → geri dönüş yap)"); steps.setMinLines(2);
         EditText person = input("Görev verilen kişi");
         form.addView(title); form.addView(space8()); form.addView(steps); form.addView(space8()); form.addView(person); form.addView(space8());
         TextView dateLabel = formLabel("Geri dönüş zamanı: " + formatDate(due[0])); form.addView(dateLabel);
