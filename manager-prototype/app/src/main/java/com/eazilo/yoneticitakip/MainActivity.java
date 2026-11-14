@@ -42,10 +42,12 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+
+        // Activity önce güvenli biçimde oluşturulsun; tema renkleri daha sonra manuel uygulanır.
+        // Böylece bazı Android sürümlerinde oluşan açılış çökmesi engellenir.
         prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
         applyPalette();
-        setTheme(darkMode ? android.R.style.Theme_Material_NoActionBar : android.R.style.Theme_Material_Light_NoActionBar);
-        super.onCreate(savedInstanceState);
         updateSystemBars();
 
         createNotificationChannel();
