@@ -6,9 +6,12 @@ import android.content.*;
 import android.content.pm.PackageManager;
 import android.graphics.*;
 import android.graphics.drawable.GradientDrawable;
+import android.net.Uri;
 import android.os.*;
 import android.provider.MediaStore;
+import android.provider.Settings;
 import android.view.*;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.*;
 
 import org.json.*;
@@ -23,14 +26,16 @@ public class MainActivity extends Activity {
     private static final int REQ_CAMERA = 40;
     private static final int REQ_NOTIF = 41;
 
-    private final int BG = Color.rgb(246, 248, 252);
+    private final int BG = Color.rgb(247, 247, 244);
     private final int CARD = Color.WHITE;
-    private final int TEXT = Color.rgb(27, 35, 52);
-    private final int MUTED = Color.rgb(108, 119, 140);
-    private final int ACCENT = Color.rgb(83, 102, 245);
-    private final int GREEN = Color.rgb(45, 158, 105);
-    private final int RED = Color.rgb(213, 72, 72);
-    private final int ORANGE = Color.rgb(222, 139, 41);
+    private final int TEXT = Color.rgb(24, 24, 22);
+    private final int MUTED = Color.rgb(117, 117, 110);
+    private final int BORDER = Color.rgb(228, 228, 222);
+    private final int DARK = Color.rgb(25, 25, 23);
+    private final int GREEN = Color.rgb(38, 137, 91);
+    private final int RED = Color.rgb(196, 64, 57);
+    private final int AMBER = Color.rgb(174, 111, 31);
+    private final int BLUE = Color.rgb(69, 95, 184);
 
     private SharedPreferences prefs;
     private JSONArray tasks = new JSONArray();
@@ -38,15 +43,18 @@ public class MainActivity extends Activity {
     private JSONArray controlCards = new JSONArray();
     private LinearLayout content;
     private String currentPage = "home";
-
     private String pendingCardBranch;
     private long pendingCardNextCheck;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        getWindow().setStatusBarColor(Color.rgb(28, 37, 56));
-        getWindow().setNavigationBarColor(Color.WHITE);
+        getWindow().setStatusBarColor(BG);
+        getWindow().setNavigationBarColor(BG);
+        if (Build.VERSION.SDK_INT >= 23) {
+            getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
+        }
+
         prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
         createNotificationChannel();
         requestNotificationPermissionIfNeeded();
@@ -56,114 +64,101 @@ public class MainActivity extends Activity {
         showHome();
     }
 
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (Build.VERSION.SDK_INT >= 31) {
+            AlarmManager am = (AlarmManager) getSystemService(ALARM_SERVICE);
+            if (am != null && am.canScheduleExactAlarms()) AlarmUtils.rescheduleAll(this);
+        }
+        if (content != null && "home".equals(currentPage)) showHome();
+    }
+
     private void buildShell() {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(BG);
-        // Android 15+ edge-to-edge: sistem çubuklarının alanını biz yönetiyoruz.
+
         if (Build.VERSION.SDK_INT >= 30) {
             getWindow().setDecorFitsSystemWindows(false);
         } else {
             getWindow().getDecorView().setSystemUiVisibility(
                     View.SYSTEM_UI_FLAG_LAYOUT_STABLE |
                     View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN |
-                    View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
+                    View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION |
+                    View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
         }
 
         LinearLayout header = new LinearLayout(this);
-        header.setPadding(dp(18), dp(14), dp(18), dp(12));
+        header.setOrientation(LinearLayout.HORIZONTAL);
         header.setGravity(Gravity.CENTER_VERTICAL);
-        header.setBackgroundColor(Color.rgb(28, 37, 56));
-        TextView brand = tv("Yönetici Takip", 20, Color.WHITE, true);
-        TextView privacy = tv("  •  yerel", 12, Color.rgb(171, 184, 206), false);
-        header.addView(brand);
-        header.addView(privacy);
-        header.setMinimumHeight(dp(58));
+        header.setPadding(dp(18), dp(12), dp(12), dp(10));
+        header.setBackgroundColor(BG);
+
+        TextView brand = tv("takip_", 22, TEXT, true);
+        header.addView(brand, new LinearLayout.LayoutParams(0, -2, 1));
+
+        TextView bell = chip("◉", DARK, Color.WHITE);
+        bell.setGravity(Gravity.CENTER);
+        bell.setTextSize(15);
+        bell.setOnClickListener(v -> openNotificationReliabilitySetup());
+        header.addView(bell, new LinearLayout.LayoutParams(dp(42), dp(38)));
         root.addView(header, new LinearLayout.LayoutParams(-1, -2));
 
         ScrollView scroller = new ScrollView(this);
         scroller.setFillViewport(true);
+        scroller.setClipToPadding(false);
         content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
-        int side = isNarrowScreen() ? 12 : 16;
-        content.setPadding(dp(side), dp(16), dp(side), dp(28));
+        int side = isNarrowScreen() ? 14 : 18;
+        content.setPadding(dp(side), dp(8), dp(side), dp(28));
         scroller.addView(content, new ScrollView.LayoutParams(-1, -2));
         root.addView(scroller, new LinearLayout.LayoutParams(-1, 0, 1));
 
         LinearLayout nav = new LinearLayout(this);
-        nav.setPadding(dp(4), dp(5), dp(4), dp(7));
-        nav.setBackgroundColor(Color.WHITE);
+        nav.setOrientation(LinearLayout.HORIZONTAL);
         nav.setGravity(Gravity.CENTER);
-        nav.setMinimumHeight(dp(62));
-        nav.addView(navButton("⌂\nÖzet", "home"), new LinearLayout.LayoutParams(0, -2, 1));
-        nav.addView(navButton("✓\nİşler", "tasks"), new LinearLayout.LayoutParams(0, -2, 1));
-        nav.addView(navButton("⌖\nSaha", "field"), new LinearLayout.LayoutParams(0, -2, 1));
-        nav.addView(navButton("▦\nŞubeler", "branches"), new LinearLayout.LayoutParams(0, -2, 1));
+        nav.setPadding(dp(8), dp(6), dp(8), dp(8));
+        nav.setBackgroundColor(CARD);
+        nav.addView(navButton("Bugün", "home"), new LinearLayout.LayoutParams(0, dp(52), 1));
+        nav.addView(navButton("İşler", "tasks"), new LinearLayout.LayoutParams(0, dp(52), 1));
+        nav.addView(navButton("Saha", "field"), new LinearLayout.LayoutParams(0, dp(52), 1));
         root.addView(nav);
+
         applySystemBarInsets(root, header, nav);
         setContentView(root);
     }
 
     private void applySystemBarInsets(View root, View header, View nav) {
-        final int headerLeft = dp(18);
-        final int headerTop = dp(14);
-        final int headerRight = dp(18);
-        final int headerBottom = dp(12);
-        final int navLeft = dp(4);
-        final int navTop = dp(5);
-        final int navRight = dp(4);
-        final int navBottom = dp(7);
+        final int headerLeft = dp(18), headerTop = dp(12), headerRight = dp(12), headerBottom = dp(10);
+        final int navLeft = dp(8), navTop = dp(6), navRight = dp(8), navBottom = dp(8);
 
         root.setOnApplyWindowInsetsListener((v, insets) -> {
-            int left;
-            int top;
-            int right;
-            int bottom;
-
+            int left, top, right, bottom;
             if (Build.VERSION.SDK_INT >= 30) {
                 Insets bars = insets.getInsets(WindowInsets.Type.systemBars());
-                left = bars.left;
-                top = bars.top;
-                right = bars.right;
-                bottom = bars.bottom;
+                left = bars.left; top = bars.top; right = bars.right; bottom = bars.bottom;
             } else {
                 left = insets.getSystemWindowInsetLeft();
                 top = insets.getSystemWindowInsetTop();
                 right = insets.getSystemWindowInsetRight();
                 bottom = insets.getSystemWindowInsetBottom();
             }
-
-            header.setPadding(
-                    headerLeft + left,
-                    headerTop + top,
-                    headerRight + right,
-                    headerBottom
-            );
-
-            // Alt uygulama menüsü, Android'in 3 tuşlu veya gesture alanının üstünde kalır.
-            nav.setPadding(
-                    navLeft + left,
-                    navTop,
-                    navRight + right,
-                    navBottom + bottom
-            );
-
+            header.setPadding(headerLeft + left, headerTop + top, headerRight + right, headerBottom);
+            nav.setPadding(navLeft + left, navTop, navRight + right, navBottom + bottom);
             return insets;
         });
-
         root.requestApplyInsets();
     }
 
     private TextView navButton(String label, String page) {
-        TextView v = tv(label, 12, MUTED, false);
+        TextView v = tv(label, 13, MUTED, true);
         v.setGravity(Gravity.CENTER);
-        v.setPadding(dp(3), dp(4), dp(3), dp(2));
         v.setOnClickListener(x -> {
             currentPage = page;
-            if (page.equals("home")) showHome();
-            else if (page.equals("tasks")) showTasks();
-            else if (page.equals("field")) showField();
-            else showBranches();
+            if ("home".equals(page)) showHome();
+            else if ("tasks".equals(page)) showTasks();
+            else showField();
         });
         return v;
     }
@@ -171,386 +166,678 @@ public class MainActivity extends Activity {
     private void showHome() {
         currentPage = "home";
         content.removeAllViews();
-        content.addView(tv("Bugün neye bakmalıyım?", 25, TEXT, true));
-        TextView sub = tv("Açık kalan işleri, dönüşleri ve saha kontrollerini tek yerde gör.", 14, MUTED, false);
-        sub.setPadding(0, dp(4), 0, dp(14));
-        content.addView(sub);
 
-        int overdueTasks = 0, todayTasks = 0, waitingField = 0, todayField = 0;
+        LinearLayout hero = new LinearLayout(this);
+        hero.setOrientation(LinearLayout.HORIZONTAL);
+        hero.setGravity(Gravity.BOTTOM);
+        TextView title = tv("Bugün", isNarrowScreen() ? 30 : 34, TEXT, true);
+        hero.addView(title, new LinearLayout.LayoutParams(0, -2, 1));
+        TextView date = tv(new SimpleDateFormat("d MMM", new Locale("tr","TR")).format(new Date()), 13, MUTED, true);
+        hero.addView(date);
+        content.addView(hero);
+
+        addGap(14);
+
+        if (!notificationSetupComplete()) {
+            LinearLayout warn = roundedCard(Color.rgb(252, 248, 235), Color.rgb(238, 220, 170), 18);
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            TextView t = tv("Bildirim güvencesi", 14, TEXT, true);
+            row.addView(t, new LinearLayout.LayoutParams(0, -2, 1));
+            TextView setup = chip("Ayarla", DARK, Color.WHITE);
+            setup.setOnClickListener(v -> openNotificationReliabilitySetup());
+            row.addView(setup);
+            warn.addView(row);
+            addCard(warn);
+        }
+
+        int overdue = 0, dueSoon = 0, fieldDue = 0;
         long now = System.currentTimeMillis();
-        long end = now + 24L * 60 * 60 * 1000;
-        for (int i = 0; i < tasks.length(); i++) {
-            JSONObject o = tasks.optJSONObject(i);
-            if (o == null || o.optBoolean("done")) continue;
-            long due = o.optLong("due");
-            if (due < now) overdueTasks++;
-            else if (due < end) todayTasks++;
+        long week = now + 7L * 24 * 60 * 60 * 1000;
+        for (int i=0;i<tasks.length();i++) {
+            JSONObject o=tasks.optJSONObject(i);
+            if (o==null || o.optBoolean("done")) continue;
+            long due=o.optLong("due");
+            if (due < now) overdue++;
+            else if (due <= week) dueSoon++;
         }
-        for (int i = 0; i < fieldNotes.length(); i++) {
-            JSONObject o = fieldNotes.optJSONObject(i);
-            if (o == null || o.optBoolean("done")) continue;
-            waitingField++;
-            long due = o.optLong("checkAt");
-            if (due <= end) todayField++;
+        for (int i=0;i<fieldNotes.length();i++) {
+            JSONObject o=fieldNotes.optJSONObject(i);
+            if (o==null || o.optBoolean("done")) continue;
+            if (o.optLong("checkAt") <= week) fieldDue++;
         }
 
-        LinearLayout row1 = new LinearLayout(this); row1.setOrientation(LinearLayout.HORIZONTAL);
-        row1.addView(statCard("Geciken", String.valueOf(overdueTasks), RED), new LinearLayout.LayoutParams(0, -2, 1));
-        Space s1 = new Space(this); row1.addView(s1, new LinearLayout.LayoutParams(dp(10), 1));
-        row1.addView(statCard("Bugün dönüş", String.valueOf(todayTasks), ACCENT), new LinearLayout.LayoutParams(0, -2, 1));
-        content.addView(row1);
-        Space vs = new Space(this); content.addView(vs, new LinearLayout.LayoutParams(1, dp(10)));
-        LinearLayout row2 = new LinearLayout(this); row2.setOrientation(LinearLayout.HORIZONTAL);
-        row2.addView(statCard("Saha açık", String.valueOf(waitingField), ORANGE), new LinearLayout.LayoutParams(0, -2, 1));
-        Space s2 = new Space(this); row2.addView(s2, new LinearLayout.LayoutParams(dp(10), 1));
-        row2.addView(statCard("Bugün kontrol", String.valueOf(todayField), GREEN), new LinearLayout.LayoutParams(0, -2, 1));
-        content.addView(row2);
+        LinearLayout stats = new LinearLayout(this);
+        stats.setOrientation(LinearLayout.HORIZONTAL);
+        stats.addView(statCard("Geciken", overdue, overdue>0?RED:TEXT), new LinearLayout.LayoutParams(0, -2, 1));
+        Space a=new Space(this); stats.addView(a,new LinearLayout.LayoutParams(dp(8),1));
+        stats.addView(statCard("7 gün", dueSoon, BLUE), new LinearLayout.LayoutParams(0, -2, 1));
+        Space b=new Space(this); stats.addView(b,new LinearLayout.LayoutParams(dp(8),1));
+        stats.addView(statCard("Saha", fieldDue, AMBER), new LinearLayout.LayoutParams(0, -2, 1));
+        content.addView(stats);
 
-        Space gap = new Space(this); content.addView(gap, new LinearLayout.LayoutParams(1, dp(20)));
-        LinearLayout quick = new LinearLayout(this); quick.setOrientation(isNarrowScreen() ? LinearLayout.VERTICAL : LinearLayout.HORIZONTAL);
-        Button quickTask = primaryButton("+ Yeni iş", v -> showAddTaskDialog());
-        Button quickField = outlineButton("+ Saha notu", v -> showAddFieldDialog());
-        if (isNarrowScreen()) {
-            quick.addView(quickTask, new LinearLayout.LayoutParams(-1, dp(48)));
-            Space qs = new Space(this); quick.addView(qs, new LinearLayout.LayoutParams(1, dp(8)));
-            quick.addView(quickField, new LinearLayout.LayoutParams(-1, dp(48)));
-        } else {
-            quick.addView(quickTask, new LinearLayout.LayoutParams(0, dp(48), 1));
-            Space qs = new Space(this); quick.addView(qs, new LinearLayout.LayoutParams(dp(10), 1));
-            quick.addView(quickField, new LinearLayout.LayoutParams(0, dp(48), 1));
+        addGap(18);
+        Button add = primaryButton("+  Yeni iş", v -> showTaskWizard());
+        content.addView(add, new LinearLayout.LayoutParams(-1, dp(52)));
+
+        sectionTitle("Takipte");
+        ArrayList<JSONObject> open = new ArrayList<>();
+        for (int i=0;i<tasks.length();i++) {
+            JSONObject o=tasks.optJSONObject(i);
+            if (o!=null && !o.optBoolean("done")) open.add(o);
         }
-        content.addView(quick);
+        open.sort(Comparator.comparingLong(o -> o.optLong("due")));
+        if (open.isEmpty()) content.addView(emptyState("Açık iş yok"));
+        for (int i=0;i<Math.min(6,open.size());i++) content.addView(taskCard(open.get(i), true));
 
-        sectionTitle("Öncelikli takipler");
-        ArrayList<JSONObject> upcoming = new ArrayList<>();
-        for (int i = 0; i < tasks.length(); i++) {
-            JSONObject o = tasks.optJSONObject(i);
-            if (o != null && !o.optBoolean("done")) upcoming.add(o);
-        }
-        upcoming.sort(Comparator.comparingLong(o -> o.optLong("due")));
-        if (upcoming.isEmpty()) content.addView(emptyState("Açık iş yok."));
-        for (int i = 0; i < Math.min(5, upcoming.size()); i++) content.addView(taskCard(upcoming.get(i), true));
-
-        sectionTitle("Yaklaşan saha kontrolleri");
+        sectionTitle("Saha");
         ArrayList<JSONObject> notes = new ArrayList<>();
-        for (int i = 0; i < fieldNotes.length(); i++) {
-            JSONObject o = fieldNotes.optJSONObject(i);
-            if (o != null && !o.optBoolean("done")) notes.add(o);
+        for (int i=0;i<fieldNotes.length();i++) {
+            JSONObject o=fieldNotes.optJSONObject(i);
+            if (o!=null && !o.optBoolean("done")) notes.add(o);
         }
         notes.sort(Comparator.comparingLong(o -> o.optLong("checkAt")));
-        if (notes.isEmpty()) content.addView(emptyState("Kontrol bekleyen saha notu yok."));
-        for (int i = 0; i < Math.min(3, notes.size()); i++) content.addView(fieldCard(notes.get(i), true));
+        if (notes.isEmpty()) content.addView(emptyState("Kontrol bekleyen saha notu yok"));
+        for (int i=0;i<Math.min(3,notes.size());i++) content.addView(fieldCard(notes.get(i), true));
     }
 
     private void showTasks() {
         currentPage = "tasks";
         content.removeAllViews();
-        LinearLayout top = titleRow("İşler & Delegasyon", "+ Yeni iş", v -> showAddTaskDialog());
-        content.addView(top);
-        TextView hint = tv("Kime verdiğini, iş adımlarını ve geri dönüş zamanını kaydet. Yaklaşınca uygulama hatırlatır.", 13, MUTED, false);
-        hint.setPadding(0, dp(4), 0, dp(12)); content.addView(hint);
 
-        int active = 0;
-        for (int i=0;i<tasks.length();i++) if (!tasks.optJSONObject(i).optBoolean("done")) active++;
-        if (active == 0) content.addView(emptyState("Henüz açık iş yok. Yeni iş ekleyebilirsin."));
+        LinearLayout top = new LinearLayout(this);
+        top.setGravity(Gravity.CENTER_VERTICAL);
+        top.addView(tv("İşler", 30, TEXT, true), new LinearLayout.LayoutParams(0,-2,1));
+        TextView add = chip("+ Yeni", DARK, Color.WHITE);
+        add.setOnClickListener(v -> showTaskWizard());
+        top.addView(add);
+        content.addView(top);
+
+        addGap(14);
 
         ArrayList<JSONObject> list = new ArrayList<>();
-        for (int i = 0; i < tasks.length(); i++) list.add(tasks.optJSONObject(i));
-        list.sort((a,b) -> Boolean.compare(a.optBoolean("done"), b.optBoolean("done")) != 0 ? Boolean.compare(a.optBoolean("done"), b.optBoolean("done")) : Long.compare(a.optLong("due"), b.optLong("due")));
-        for (JSONObject o : list) content.addView(taskCard(o, false));
+        for (int i=0;i<tasks.length();i++) {
+            JSONObject o=tasks.optJSONObject(i);
+            if (o!=null) list.add(o);
+        }
+        list.sort((x,y) -> {
+            if (x.optBoolean("done") != y.optBoolean("done")) return x.optBoolean("done") ? 1 : -1;
+            return Long.compare(x.optLong("due"), y.optLong("due"));
+        });
+
+        if (list.isEmpty()) content.addView(emptyState("Henüz iş yok"));
+        for (JSONObject o:list) content.addView(taskCard(o,false));
     }
 
     private void showField() {
         currentPage = "field";
         content.removeAllViews();
-        content.addView(tv("Saha", 25, TEXT, true));
-        TextView hint = tv("Şubede görülen konu → görev verilen kişi → yeniden kontrol zamanı.", 13, MUTED, false);
-        hint.setPadding(0, dp(4), 0, dp(12)); content.addView(hint);
 
-        LinearLayout row = new LinearLayout(this); row.setOrientation(isNarrowScreen() ? LinearLayout.VERTICAL : LinearLayout.HORIZONTAL);
-        Button addField = primaryButton("+ Saha notu", v -> showAddFieldDialog());
-        Button addCard = outlineButton("📷 Kontrol kartı", v -> showControlCardDialog());
+        LinearLayout top = new LinearLayout(this);
+        top.setGravity(Gravity.CENTER_VERTICAL);
+        top.addView(tv("Saha", 30, TEXT, true), new LinearLayout.LayoutParams(0,-2,1));
+        content.addView(top);
+
+        addGap(12);
+
+        LinearLayout buttons = new LinearLayout(this);
+        buttons.setOrientation(isNarrowScreen()?LinearLayout.VERTICAL:LinearLayout.HORIZONTAL);
+        Button note = primaryButton("+ Saha notu", v -> showAddFieldDialog());
+        Button photo = secondaryButton("Kontrol kartı  ◫", v -> showControlCardDialog());
         if (isNarrowScreen()) {
-            row.addView(addField, new LinearLayout.LayoutParams(-1, dp(48)));
-            Space sp = new Space(this); row.addView(sp, new LinearLayout.LayoutParams(1, dp(8)));
-            row.addView(addCard, new LinearLayout.LayoutParams(-1, dp(48)));
+            buttons.addView(note,new LinearLayout.LayoutParams(-1,dp(50)));
+            addGap(buttons,8);
+            buttons.addView(photo,new LinearLayout.LayoutParams(-1,dp(50)));
         } else {
-            row.addView(addField, new LinearLayout.LayoutParams(0, dp(48), 1));
-            Space sp = new Space(this); row.addView(sp, new LinearLayout.LayoutParams(dp(10), 1));
-            row.addView(addCard, new LinearLayout.LayoutParams(0, dp(48), 1));
+            buttons.addView(note,new LinearLayout.LayoutParams(0,dp(50),1));
+            Space s=new Space(this);buttons.addView(s,new LinearLayout.LayoutParams(dp(8),1));
+            buttons.addView(photo,new LinearLayout.LayoutParams(0,dp(50),1));
         }
-        content.addView(row);
+        content.addView(buttons);
 
-        sectionTitle("Kontrol bekleyen saha notları");
-        ArrayList<JSONObject> notes = new ArrayList<>();
-        for (int i = 0; i < fieldNotes.length(); i++) {
-            JSONObject o = fieldNotes.optJSONObject(i);
-            if (o != null) notes.add(o);
+        sectionTitle("Kontrol bekleyen");
+        ArrayList<JSONObject> notes=new ArrayList<>();
+        for(int i=0;i<fieldNotes.length();i++){
+            JSONObject o=fieldNotes.optJSONObject(i);
+            if(o!=null) notes.add(o);
         }
-        notes.sort((a,b) -> Boolean.compare(a.optBoolean("done"), b.optBoolean("done")) != 0 ? Boolean.compare(a.optBoolean("done"), b.optBoolean("done")) : Long.compare(a.optLong("checkAt"), b.optLong("checkAt")));
-        if (notes.isEmpty()) content.addView(emptyState("Saha notu yok."));
-        for (JSONObject o : notes) content.addView(fieldCard(o, false));
+        notes.sort((x,y)->{
+            if(x.optBoolean("done")!=y.optBoolean("done")) return x.optBoolean("done")?1:-1;
+            return Long.compare(x.optLong("checkAt"),y.optLong("checkAt"));
+        });
+        if(notes.isEmpty()) content.addView(emptyState("Saha notu yok"));
+        for(JSONObject o:notes) content.addView(fieldCard(o,false));
 
-        sectionTitle("Son kontrol kartları");
-        if (controlCards.length() == 0) content.addView(emptyState("Henüz kontrol kartı fotoğraflanmadı."));
-        for (int i = controlCards.length() - 1; i >= 0 && i >= controlCards.length()-4; i--) content.addView(controlCardView(controlCards.optJSONObject(i)));
+        sectionTitle("Kontrol kartları");
+        if(controlCards.length()==0) content.addView(emptyState("Kontrol kartı yok"));
+        for(int i=controlCards.length()-1;i>=0;i--) content.addView(controlCardView(controlCards.optJSONObject(i)));
     }
 
-    private void showBranches() {
-        currentPage = "branches";
-        content.removeAllViews();
-        content.addView(tv("Şubeler", 25, TEXT, true));
-        TextView hint = tv("Her şubenin açık saha maddelerini ve fotoğraflanan kontrol kartlarını gör.", 13, MUTED, false);
-        hint.setPadding(0, dp(4), 0, dp(14)); content.addView(hint);
+    private void showTaskWizard() {
+        final Dialog dialog = new Dialog(this);
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
 
-        LinkedHashSet<String> branches = new LinkedHashSet<>();
-        for (int i=0;i<fieldNotes.length();i++) branches.add(fieldNotes.optJSONObject(i).optString("branch"));
-        for (int i=0;i<controlCards.length();i++) branches.add(controlCards.optJSONObject(i).optString("branch"));
-        branches.remove("");
-        if (branches.isEmpty()) content.addView(emptyState("Henüz şube kaydı yok. Saha notu veya kontrol kartı ekleyerek başlayabilirsin."));
+        LinearLayout shell = new LinearLayout(this);
+        shell.setOrientation(LinearLayout.VERTICAL);
+        shell.setPadding(dp(18),dp(18),dp(18),dp(18));
+        shell.setBackgroundColor(BG);
 
-        for (String branch : branches) {
-            int open = 0, cards = 0; long next = Long.MAX_VALUE;
-            for (int i=0;i<fieldNotes.length();i++) {
-                JSONObject n = fieldNotes.optJSONObject(i);
-                if (branch.equals(n.optString("branch")) && !n.optBoolean("done")) { open++; next = Math.min(next, n.optLong("checkAt")); }
+        LinearLayout head = new LinearLayout(this);
+        head.setGravity(Gravity.CENTER_VERTICAL);
+        TextView name=tv("Yeni iş",24,TEXT,true);
+        head.addView(name,new LinearLayout.LayoutParams(0,-2,1));
+        TextView close=chip("×",Color.rgb(232,232,226),TEXT);
+        close.setTextSize(19);
+        close.setOnClickListener(v->dialog.dismiss());
+        head.addView(close,new LinearLayout.LayoutParams(dp(40),dp(40)));
+        shell.addView(head);
+
+        TextView progress=tv("1 / 5",12,MUTED,true);
+        progress.setPadding(0,dp(10),0,dp(14));
+        shell.addView(progress);
+
+        LinearLayout cardHost = new LinearLayout(this);
+        cardHost.setOrientation(LinearLayout.VERTICAL);
+        shell.addView(cardHost,new LinearLayout.LayoutParams(-1,0,1));
+
+        LinearLayout foot = new LinearLayout(this);
+        foot.setGravity(Gravity.CENTER_VERTICAL);
+        foot.setPadding(0,dp(12),0,0);
+        Button back=secondaryButton("Geri",v->{});
+        Button next=primaryButton("Devam",v->{});
+        foot.addView(back,new LinearLayout.LayoutParams(0,dp(50),1));
+        Space sp=new Space(this);foot.addView(sp,new LinearLayout.LayoutParams(dp(8),1));
+        foot.addView(next,new LinearLayout.LayoutParams(0,dp(50),1));
+        shell.addView(foot);
+
+        final int[] step={0};
+        final String[] title={""}, steps={""}, person={""};
+        final long[] due={System.currentTimeMillis()+3L*24*60*60*1000};
+        final int[] remindDays={1};
+        final EditText[] currentInput={null};
+
+        Runnable render = new Runnable() {
+            @Override public void run() {
+                cardHost.removeAllViews();
+                progress.setText((step[0]+1)+" / 5");
+                back.setVisibility(step[0]==0?View.INVISIBLE:View.VISIBLE);
+                next.setText(step[0]==4?"Kaydet":"Devam");
+
+                LinearLayout card=roundedCard(CARD,BORDER,22);
+                card.setPadding(dp(20),dp(22),dp(20),dp(20));
+
+                if(step[0]==0){
+                    card.addView(tv("İş başlığı",20,TEXT,true));
+                    EditText e=wizardInput("Kısa ve net yaz");
+                    e.setSingleLine(true);
+                    e.setText(title[0]);
+                    e.setSelection(e.length());
+                    currentInput[0]=e;
+                    addGap(card,16); card.addView(e);
+                    e.requestFocus();
+                } else if(step[0]==1){
+                    card.addView(tv("İş adımları",20,TEXT,true));
+                    EditText e=wizardInput("Yapılacak adımları sırayla yaz");
+                    e.setMinLines(5);
+                    e.setGravity(Gravity.TOP);
+                    e.setText(steps[0]);
+                    e.setSelection(e.length());
+                    currentInput[0]=e;
+                    addGap(card,16); card.addView(e,new LinearLayout.LayoutParams(-1,dp(170)));
+                    e.requestFocus();
+                } else if(step[0]==2){
+                    card.addView(tv("Görev verilen kişi",20,TEXT,true));
+                    EditText e=wizardInput("Ad soyad");
+                    e.setSingleLine(true);
+                    e.setText(person[0]);
+                    e.setSelection(e.length());
+                    currentInput[0]=e;
+                    addGap(card,16); card.addView(e);
+                    e.requestFocus();
+                } else if(step[0]==3){
+                    currentInput[0]=null;
+                    card.addView(tv("Geri dönüş zamanı",20,TEXT,true));
+                    TextView chosen=tv(formatDateLong(due[0]),28,TEXT,true);
+                    chosen.setPadding(0,dp(18),0,dp(18));
+                    card.addView(chosen);
+                    Button choose=secondaryButton("Tarih / saat seç",v->pickDateTime(due,chosen,""));
+                    card.addView(choose,new LinearLayout.LayoutParams(-1,dp(50)));
+                } else {
+                    currentInput[0]=null;
+                    card.addView(tv("Kaç gün önce hatırlatsın?",20,TEXT,true));
+                    addGap(card,18);
+                    int[] vals={1,2,3,7,15};
+                    LinearLayout chips=new LinearLayout(MainActivity.this);
+                    chips.setOrientation(LinearLayout.HORIZONTAL);
+                    chips.setGravity(Gravity.CENTER);
+                    for(int val:vals){
+                        TextView c=reminderChip(val,remindDays[0]==val);
+                        c.setOnClickListener(v->{remindDays[0]=val;run();});
+                        chips.addView(c,new LinearLayout.LayoutParams(0,dp(52),1));
+                        if(val!=15){Space q=new Space(MainActivity.this);chips.addView(q,new LinearLayout.LayoutParams(dp(6),1));}
+                    }
+                    card.addView(chips);
+                }
+                cardHost.addView(card,new LinearLayout.LayoutParams(-1,-1));
             }
-            for (int i=0;i<controlCards.length();i++) {
-                JSONObject c = controlCards.optJSONObject(i);
-                if (branch.equals(c.optString("branch"))) { cards++; next = Math.min(next, c.optLong("nextCheckAt", Long.MAX_VALUE)); }
+        };
+
+        back.setOnClickListener(v->{
+            if(step[0]>0){storeWizardInput(step[0],currentInput[0],title,steps,person);step[0]--;render.run();}
+        });
+
+        next.setOnClickListener(v->{
+            if(step[0]<=2){
+                String val=currentInput[0]==null?"":currentInput[0].getText().toString().trim();
+                if(val.isEmpty()){toast("Bu alan boş bırakılamaz.");return;}
             }
-            LinearLayout card = baseCard();
-            TextView t = tv(branch, 18, TEXT, true); card.addView(t);
-            TextView m = tv(open + " açık saha maddesi  •  " + cards + " kontrol kartı", 13, MUTED, false); m.setPadding(0, dp(5),0,dp(3)); card.addView(m);
-            if (next != Long.MAX_VALUE) card.addView(tv("Sonraki kontrol: " + formatDate(next), 13, next < System.currentTimeMillis() ? RED : ACCENT, true));
-            TextView openBtn = tv("Şube detayını aç  ›", 13, ACCENT, true); openBtn.setPadding(0, dp(12), 0, 0); card.addView(openBtn);
-            card.setOnClickListener(v -> showBranchDetail(branch));
-            addCard(card);
-        }
-    }
-
-    private LinearLayout taskCard(JSONObject o, boolean compact) {
-        LinearLayout card = baseCard();
-        boolean done = o.optBoolean("done");
-        long due = o.optLong("due");
-        boolean late = !done && due < System.currentTimeMillis();
-        String status = done ? "TAMAMLANDI" : late ? "GECİKTİ" : "BEKLENİYOR";
-        int statusColor = done ? GREEN : late ? RED : ACCENT;
-        card.addView(badge(status, statusColor));
-        TextView title = tv(o.optString("title"), compact ? 16 : 17, done ? MUTED : TEXT, true); title.setPadding(0,dp(7),0,dp(4)); card.addView(title);
-        card.addView(tv("↳ " + o.optString("person") + "  •  " + formatDate(due), 13, late ? RED : MUTED, false));
-        String steps = o.optString("steps", "").trim();
-        if (!compact && !steps.isEmpty()) { TextView st=tv("İş adımları: " + steps, 13, MUTED, false); st.setPadding(0,dp(7),0,0); card.addView(st); }
-        if (!compact && !done) {
-            LinearLayout actions = new LinearLayout(this); actions.setOrientation(LinearLayout.HORIZONTAL); actions.setPadding(0,dp(10),0,0);
-            actions.addView(smallButton("Tamamlandı", GREEN, v -> markTaskDone(o.optInt("id"))), new LinearLayout.LayoutParams(0,dp(40),1));
-            Space sp = new Space(this); actions.addView(sp,new LinearLayout.LayoutParams(dp(8),1));
-            actions.addView(smallButton("+1 gün", ACCENT, v -> postponeTask(o.optInt("id"))), new LinearLayout.LayoutParams(0,dp(40),1));
-            card.addView(actions);
-        }
-        addMargins(card);
-        return card;
-    }
-
-    private LinearLayout fieldCard(JSONObject o, boolean compact) {
-        LinearLayout card = baseCard();
-        boolean done = o.optBoolean("done");
-        long due = o.optLong("checkAt");
-        boolean late = !done && due < System.currentTimeMillis();
-        card.addView(badge(done ? "KAPANDI" : late ? "KONTROL GECİKTİ" : "KONTROL BEKLİYOR", done ? GREEN : late ? RED : ORANGE));
-        TextView title=tv(o.optString("branch") + " • " + o.optString("note"), compact?15:16, done?MUTED:TEXT,true); title.setPadding(0,dp(7),0,dp(4)); card.addView(title);
-        card.addView(tv("Görev: " + o.optString("person") + "  •  Kontrol: " + formatDate(due),13, late?RED:MUTED,false));
-        if (!compact && !done) {
-            LinearLayout actions = new LinearLayout(this); actions.setOrientation(LinearLayout.HORIZONTAL); actions.setPadding(0,dp(10),0,0);
-            actions.addView(smallButton("Kontrol edildi", GREEN, v -> markFieldDone(o.optInt("id"))), new LinearLayout.LayoutParams(0,dp(40),1));
-            Space sp=new Space(this); actions.addView(sp,new LinearLayout.LayoutParams(dp(8),1));
-            actions.addView(smallButton("Yarın bak", ORANGE, v -> postponeField(o.optInt("id"))), new LinearLayout.LayoutParams(0,dp(40),1));
-            card.addView(actions);
-        }
-        addMargins(card); return card;
-    }
-
-    private LinearLayout controlCardView(JSONObject o) {
-        LinearLayout card = baseCard();
-        LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); row.setGravity(Gravity.CENTER_VERTICAL);
-        String path = o.optString("photoPath");
-        if (!path.isEmpty()) {
-            Bitmap b = BitmapFactory.decodeFile(path);
-            if (b != null) {
-                ImageView img = new ImageView(this); img.setImageBitmap(b); img.setScaleType(ImageView.ScaleType.CENTER_CROP);
-                row.addView(img, new LinearLayout.LayoutParams(dp(82),dp(82)));
-                Space s=new Space(this); row.addView(s,new LinearLayout.LayoutParams(dp(12),1));
-            }
-        }
-        LinearLayout info = new LinearLayout(this); info.setOrientation(LinearLayout.VERTICAL);
-        info.addView(tv(o.optString("branch"),17,TEXT,true));
-        TextView shot=tv("Fotoğraf: " + formatDate(o.optLong("capturedAt")),12,MUTED,false); shot.setPadding(0,dp(4),0,dp(2)); info.addView(shot);
-        long next=o.optLong("nextCheckAt"); info.addView(tv("Sonraki kontrol: " + formatDate(next),13,next<System.currentTimeMillis()?RED:ACCENT,true));
-        row.addView(info,new LinearLayout.LayoutParams(0,-2,1)); card.addView(row); addMargins(card); return card;
-    }
-
-    private void showAddTaskDialog() {
-        final long[] due = {System.currentTimeMillis() + 24L*60*60*1000};
-        LinearLayout form = dialogForm();
-        EditText title = input("İş başlığı");
-        EditText steps = input("İş adımları (örn. kontrol et → bilgi al → geri dönüş yap)"); steps.setMinLines(2);
-        EditText person = input("Görev verilen kişi");
-        form.addView(title); form.addView(space8()); form.addView(steps); form.addView(space8()); form.addView(person); form.addView(space8());
-        TextView dateLabel = formLabel("Geri dönüş zamanı: " + formatDate(due[0])); form.addView(dateLabel);
-        Button dateBtn = outlineButton("Tarih / saat seç", v -> pickDateTime(due, dateLabel, "Geri dönüş zamanı: "));
-        form.addView(dateBtn); form.addView(space8());
-
-        TextView remL = formLabel("Ne kadar önce hatırlatsın?"); form.addView(remL);
-        Spinner reminder = new Spinner(this); String[] rLabels={"15 dakika","30 dakika","1 saat","3 saat","1 gün"}; int[] rVals={15,30,60,180,1440}; reminder.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item,rLabels)); reminder.setSelection(3); form.addView(reminder);
-        TextView pL=formLabel("Öncelik"); pL.setPadding(0,dp(9),0,0); form.addView(pL);
-        Spinner priority = new Spinner(this); String[] pr={"Normal","Önemli","Kritik"}; priority.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,pr)); priority.setSelection(1); form.addView(priority);
-
-        AlertDialog dlg = new AlertDialog.Builder(this).setTitle("Yeni iş / delegasyon").setView(wrapForm(form)).setNegativeButton("Vazgeç",null)
-                .setPositiveButton("Kaydet",null).create();
-        dlg.setOnShowListener(x -> dlg.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
-            if (title.getText().toString().trim().isEmpty() || person.getText().toString().trim().isEmpty()) { toast("İş başlığı ve kişi gerekli."); return; }
-            try {
-                int id = nextId(); JSONObject o=new JSONObject();
-                o.put("id",id); o.put("title",title.getText().toString().trim()); o.put("steps",steps.getText().toString().trim()); o.put("person",person.getText().toString().trim());
-                o.put("due",due[0]); o.put("remindMin",rVals[reminder.getSelectedItemPosition()]); o.put("priority",pr[priority.getSelectedItemPosition()]); o.put("done",false); o.put("created",System.currentTimeMillis());
-                tasks.put(o); saveData();
-                scheduleNotification(id, due[0] - rVals[reminder.getSelectedItemPosition()]*60_000L, "Dönüş yaklaşıyor", title.getText().toString().trim() + " • " + person.getText().toString().trim());
-                scheduleNotification(id+100000, due[0], "Geri dönüş zamanı geldi", title.getText().toString().trim() + " • " + person.getText().toString().trim());
-                dlg.dismiss(); toast("İş kaydedildi ve hatırlatma kuruldu."); refreshCurrent();
-            } catch (Exception e) { toast("Kaydedilemedi."); }
-        }));
-        dlg.show();
-    }
-
-    private void showAddFieldDialog() {
-        final long[] checkAt = {System.currentTimeMillis()+24L*60*60*1000};
-        LinearLayout form=dialogForm();
-        EditText branch=input("Şube adı");
-        EditText note=input("Sahada alınan not / görülen konu"); note.setMinLines(2);
-        EditText person=input("Görev verilen kişi");
-        form.addView(formLabel("Şube")); form.addView(branch); form.addView(space8()); form.addView(note); form.addView(space8()); form.addView(person); form.addView(space8());
-        TextView dateLabel=formLabel("Yeniden kontrol: "+formatDate(checkAt[0])); form.addView(dateLabel);
-        form.addView(outlineButton("Kontrol tarihini seç",v->pickDateTime(checkAt,dateLabel,"Yeniden kontrol: ")));
-        AlertDialog dlg=new AlertDialog.Builder(this).setTitle("Yeni saha notu").setView(wrapForm(form)).setNegativeButton("Vazgeç",null).setPositiveButton("Kaydet",null).create();
-        dlg.setOnShowListener(x->dlg.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{
-            String branchName=branch.getText().toString().trim();
-            if(branchName.isEmpty()||note.getText().toString().trim().isEmpty()||person.getText().toString().trim().isEmpty()){toast("Şube, not ve görev verilen kişi gerekli.");return;}
-            try { int id=nextId(); JSONObject o=new JSONObject(); o.put("id",id);o.put("branch",branchName);o.put("note",note.getText().toString().trim());o.put("person",person.getText().toString().trim());o.put("checkAt",checkAt[0]);o.put("done",false);o.put("created",System.currentTimeMillis());fieldNotes.put(o);saveData();
-                scheduleNotification(id,Math.max(System.currentTimeMillis()+60_000L,checkAt[0]-3L*60*60*1000),"Saha kontrolü yaklaşıyor",branchName+" • "+note.getText().toString().trim());
-                scheduleNotification(id+200000,checkAt[0],"Saha kontrol zamanı",branchName+" • "+note.getText().toString().trim()); dlg.dismiss();toast("Saha notu kaydedildi.");refreshCurrent();
+            storeWizardInput(step[0],currentInput[0],title,steps,person);
+            hideKeyboard();
+            if(step[0]<4){step[0]++;render.run();return;}
+            try{
+                int id=nextId();
+                JSONObject o=new JSONObject();
+                o.put("id",id);o.put("title",title[0]);o.put("steps",steps[0]);o.put("person",person[0]);
+                o.put("due",due[0]);o.put("remindDays",remindDays[0]);o.put("done",false);o.put("created",System.currentTimeMillis());
+                tasks.put(o);saveData();
+                scheduleTaskAlarms(o);
+                dialog.dismiss();refreshCurrent();
             }catch(Exception e){toast("Kaydedilemedi.");}
-        })); dlg.show();
+        });
+
+        dialog.setContentView(shell);
+        Window w=dialog.getWindow();
+        if(w!=null){
+            w.setBackgroundDrawableResource(android.R.color.transparent);
+            w.setLayout(WindowManager.LayoutParams.MATCH_PARENT,WindowManager.LayoutParams.MATCH_PARENT);
+            w.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+        }
+        dialog.setOnShowListener(x->{Window ww=dialog.getWindow();if(ww!=null)ww.setLayout(-1,-1);});
+        render.run();
+        dialog.show();
     }
 
-    private void showControlCardDialog() {
-        final long[] next = {System.currentTimeMillis()+14L*24*60*60*1000};
-        LinearLayout form=dialogForm(); EditText branch=input("Şube adı");
-        form.addView(formLabel("Şube"));form.addView(branch);form.addView(space8());TextView d=formLabel("Sonraki kontrol: "+formatDate(next[0]));form.addView(d);form.addView(outlineButton("Sonraki kontrol tarihini seç",v->pickDateTime(next,d,"Sonraki kontrol: ")));
-        TextView info=tv("Devam edince kamera açılır. Çekilen kontrol kartı fotoğrafı yalnızca uygulamanın yerel alanına kaydedilir.",13,MUTED,false);info.setPadding(0,dp(12),0,0);form.addView(info);
-        AlertDialog dlg=new AlertDialog.Builder(this).setTitle("Kontrol kartını fotoğrafla").setView(wrapForm(form)).setNegativeButton("Vazgeç",null).setPositiveButton("Kamerayı aç",null).create();
+    private void storeWizardInput(int step, EditText input, String[] title, String[] steps, String[] person){
+        if(input==null)return;
+        String v=input.getText().toString().trim();
+        if(step==0)title[0]=v;
+        else if(step==1)steps[0]=v;
+        else if(step==2)person[0]=v;
+    }
+
+    private TextView reminderChip(int day, boolean selected){
+        TextView c=tv(String.valueOf(day),18,selected?Color.WHITE:TEXT,true);
+        c.setGravity(Gravity.CENTER);
+        c.setBackground(roundRect(selected?DARK:Color.rgb(239,239,234),16));
+        return c;
+    }
+
+    private void showAddFieldDialog(){
+        final long[] checkAt={System.currentTimeMillis()+3L*24*60*60*1000};
+        LinearLayout form=dialogForm();
+        EditText branch=wizardInput("Şube adı");
+        EditText note=wizardInput("Saha notu");
+        note.setMinLines(3); note.setGravity(Gravity.TOP);
+        EditText person=wizardInput("Görev verilen kişi");
+        form.addView(branch);addGap(form,10);form.addView(note,new LinearLayout.LayoutParams(-1,dp(120)));addGap(form,10);form.addView(person);addGap(form,14);
+        TextView chosen=tv(formatDateLong(checkAt[0]),18,TEXT,true);
+        form.addView(chosen);addGap(form,8);
+        form.addView(secondaryButton("Kontrol tarihini seç",v->pickDateTime(checkAt,chosen,"")),new LinearLayout.LayoutParams(-1,dp(48)));
+
+        AlertDialog dlg=new AlertDialog.Builder(this).setTitle("Saha notu").setView(wrapForm(form)).setNegativeButton("Vazgeç",null).setPositiveButton("Kaydet",null).create();
         dlg.setOnShowListener(x->dlg.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{
-            String branchName=branch.getText().toString().trim();
-            if(branchName.isEmpty()){toast("Şube adı gerekli.");return;}
-            pendingCardBranch=branchName;pendingCardNextCheck=next[0];dlg.dismiss();launchCamera();
+            String b=branch.getText().toString().trim(),n=note.getText().toString().trim(),p=person.getText().toString().trim();
+            if(b.isEmpty()||n.isEmpty()||p.isEmpty()){toast("Tüm alanları doldur.");return;}
+            try{
+                int id=nextId();JSONObject o=new JSONObject();
+                o.put("id",id);o.put("branch",b);o.put("note",n);o.put("person",p);o.put("checkAt",checkAt[0]);o.put("done",false);o.put("created",System.currentTimeMillis());
+                fieldNotes.put(o);saveData();scheduleFieldAlarms(o);dlg.dismiss();refreshCurrent();
+            }catch(Exception e){toast("Kaydedilemedi.");}
         }));
         dlg.show();
     }
 
-    private void launchCamera() {
-        Intent intent=new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
-        if(intent.resolveActivity(getPackageManager())!=null) startActivityForResult(intent,REQ_CAMERA); else toast("Kamera uygulaması bulunamadı.");
+    private void showControlCardDialog(){
+        final long[] next={System.currentTimeMillis()+14L*24*60*60*1000};
+        LinearLayout form=dialogForm();
+        EditText branch=wizardInput("Şube adı");
+        form.addView(branch);addGap(form,14);
+        TextView chosen=tv(formatDateLong(next[0]),18,TEXT,true);
+        form.addView(chosen);addGap(form,8);
+        form.addView(secondaryButton("Sonraki kontrol tarihini seç",v->pickDateTime(next,chosen,"")),new LinearLayout.LayoutParams(-1,dp(48)));
+
+        AlertDialog dlg=new AlertDialog.Builder(this).setTitle("Kontrol kartı").setView(wrapForm(form)).setNegativeButton("Vazgeç",null).setPositiveButton("Fotoğraf çek",null).create();
+        dlg.setOnShowListener(x->dlg.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{
+            String b=branch.getText().toString().trim();
+            if(b.isEmpty()){toast("Şube adı gerekli.");return;}
+            pendingCardBranch=b;pendingCardNextCheck=next[0];dlg.dismiss();launchCamera();
+        }));
+        dlg.show();
+    }
+
+    private LinearLayout taskCard(JSONObject o, boolean compact){
+        LinearLayout card=roundedCard(CARD,BORDER,20);
+        boolean done=o.optBoolean("done");
+        long due=o.optLong("due");
+        boolean late=!done && due<System.currentTimeMillis();
+
+        LinearLayout tagRow=new LinearLayout(this);tagRow.setGravity(Gravity.CENTER_VERTICAL);
+        TextView tag=smallTag(done?"TAMAMLANDI":late?"GECİKTİ":"DELEGE",done?GREEN:late?RED:BLUE);
+        tagRow.addView(tag);
+        Space flex=new Space(this);tagRow.addView(flex,new LinearLayout.LayoutParams(0,1,1));
+        tagRow.addView(tv(formatDue(due),12,late?RED:MUTED,true));
+        card.addView(tagRow);
+
+        TextView title=tv(o.optString("title"),18,done?MUTED:TEXT,true);
+        title.setPadding(0,dp(10),0,dp(5));card.addView(title);
+        card.addView(tv(o.optString("person"),13,MUTED,true));
+
+        if(!compact){
+            String steps=o.optString("steps","");
+            if(!steps.isEmpty()){
+                TextView st=tv(steps,13,MUTED,false);st.setPadding(0,dp(10),0,0);card.addView(st);
+            }
+            if(!done){
+                LinearLayout actions=new LinearLayout(this);actions.setPadding(0,dp(14),0,0);
+                Button ok=smallButton("Tamamlandı",GREEN,v->markTaskDone(o.optInt("id")));
+                Button plus=smallButton("+1 gün",BLUE,v->postponeTask(o.optInt("id")));
+                actions.addView(ok,new LinearLayout.LayoutParams(0,dp(42),1));
+                Space s=new Space(this);actions.addView(s,new LinearLayout.LayoutParams(dp(8),1));
+                actions.addView(plus,new LinearLayout.LayoutParams(0,dp(42),1));
+                card.addView(actions);
+            }
+        }
+        addMargins(card);return card;
+    }
+
+    private LinearLayout fieldCard(JSONObject o, boolean compact){
+        LinearLayout card=roundedCard(CARD,BORDER,20);
+        boolean done=o.optBoolean("done");
+        long due=o.optLong("checkAt");
+        boolean late=!done && due<System.currentTimeMillis();
+
+        LinearLayout tagRow=new LinearLayout(this);tagRow.setGravity(Gravity.CENTER_VERTICAL);
+        tagRow.addView(smallTag(done?"KAPANDI":late?"KONTROL GECİKTİ":"SAHA",done?GREEN:late?RED:AMBER));
+        Space flex=new Space(this);tagRow.addView(flex,new LinearLayout.LayoutParams(0,1,1));
+        tagRow.addView(tv(formatDue(due),12,late?RED:MUTED,true));
+        card.addView(tagRow);
+
+        TextView branch=tv(o.optString("branch"),12,MUTED,true);branch.setPadding(0,dp(10),0,dp(3));card.addView(branch);
+        card.addView(tv(o.optString("note"),17,done?MUTED:TEXT,true));
+        TextView assignee=tv(o.optString("person"),13,MUTED,true);assignee.setPadding(0,dp(6),0,0);card.addView(assignee);
+
+        if(!compact && !done){
+            LinearLayout actions=new LinearLayout(this);actions.setPadding(0,dp(14),0,0);
+            actions.addView(smallButton("Kontrol edildi",GREEN,v->markFieldDone(o.optInt("id"))),new LinearLayout.LayoutParams(0,dp(42),1));
+            Space s=new Space(this);actions.addView(s,new LinearLayout.LayoutParams(dp(8),1));
+            actions.addView(smallButton("Yarın",AMBER,v->postponeField(o.optInt("id"))),new LinearLayout.LayoutParams(0,dp(42),1));
+            card.addView(actions);
+        }
+        addMargins(card);return card;
+    }
+
+    private LinearLayout controlCardView(JSONObject o){
+        LinearLayout card=roundedCard(CARD,BORDER,20);
+        LinearLayout row=new LinearLayout(this);row.setOrientation(LinearLayout.HORIZONTAL);row.setGravity(Gravity.CENTER_VERTICAL);
+        String path=o.optString("photoPath");
+        if(!path.isEmpty()){
+            Bitmap b=BitmapFactory.decodeFile(path);
+            if(b!=null){
+                ImageView img=new ImageView(this);img.setImageBitmap(b);img.setScaleType(ImageView.ScaleType.CENTER_CROP);
+                img.setBackground(roundRect(Color.LTGRAY,14));img.setClipToOutline(true);
+                row.addView(img,new LinearLayout.LayoutParams(dp(78),dp(78)));
+                Space s=new Space(this);row.addView(s,new LinearLayout.LayoutParams(dp(12),1));
+            }
+        }
+        LinearLayout info=new LinearLayout(this);info.setOrientation(LinearLayout.VERTICAL);
+        info.addView(smallTag("KONTROL KARTI",BLUE));
+        TextView bname=tv(o.optString("branch"),17,TEXT,true);bname.setPadding(0,dp(8),0,dp(4));info.addView(bname);
+        info.addView(tv(formatDateLong(o.optLong("nextCheckAt")),13,MUTED,true));
+        row.addView(info,new LinearLayout.LayoutParams(0,-2,1));
+        card.addView(row);addMargins(card);return card;
+    }
+
+    private void launchCamera(){
+        Intent i=new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+        if(i.resolveActivity(getPackageManager())!=null)startActivityForResult(i,REQ_CAMERA);
+        else toast("Kamera uygulaması bulunamadı.");
     }
 
     @Override
     protected void onActivityResult(int requestCode,int resultCode,Intent data){
         super.onActivityResult(requestCode,resultCode,data);
         if(requestCode==REQ_CAMERA && resultCode==RESULT_OK && data!=null && data.getExtras()!=null){
-            Object raw=data.getExtras().get("data"); if(!(raw instanceof Bitmap)){toast("Fotoğraf alınamadı.");return;}
-            Bitmap bmp=(Bitmap)raw; try{
-                File f=new File(getFilesDir(),"control_"+System.currentTimeMillis()+".jpg"); FileOutputStream fos=new FileOutputStream(f); bmp.compress(Bitmap.CompressFormat.JPEG,90,fos);fos.close();
-                int id=nextId();JSONObject o=new JSONObject();o.put("id",id);o.put("branch",pendingCardBranch);o.put("capturedAt",System.currentTimeMillis());o.put("nextCheckAt",pendingCardNextCheck);o.put("photoPath",f.getAbsolutePath());controlCards.put(o);saveData();
-                scheduleNotification(id,Math.max(System.currentTimeMillis()+60_000L,pendingCardNextCheck-24L*60*60*1000),"Kontrol kartı yenileme zamanı yaklaşıyor",pendingCardBranch+" • yarın kontrol");
-                toast("Kontrol kartı kaydedildi.");refreshCurrent();
+            Object raw=data.getExtras().get("data");
+            if(!(raw instanceof Bitmap)){toast("Fotoğraf alınamadı.");return;}
+            try{
+                Bitmap bmp=(Bitmap)raw;
+                File f=new File(getFilesDir(),"control_"+System.currentTimeMillis()+".jpg");
+                try(FileOutputStream fos=new FileOutputStream(f)){bmp.compress(Bitmap.CompressFormat.JPEG,92,fos);}
+                int id=nextId();JSONObject o=new JSONObject();
+                o.put("id",id);o.put("branch",pendingCardBranch);o.put("capturedAt",System.currentTimeMillis());
+                o.put("nextCheckAt",pendingCardNextCheck);o.put("photoPath",f.getAbsolutePath());
+                controlCards.put(o);saveData();
+                AlarmUtils.schedule(this,id,pendingCardNextCheck-24L*60*60*1000,"Kontrol kartı","Yarın • "+pendingCardBranch);
+                AlarmUtils.schedule(this,id+300000,pendingCardNextCheck,"Kontrol zamanı",pendingCardBranch);
+                refreshCurrent();
             }catch(Exception e){toast("Fotoğraf kaydedilemedi.");}
         }
     }
 
-    private void showBranchDetail(String branch) {
-        LinearLayout box=dialogForm(); box.addView(tv(branch,22,TEXT,true));
-        int count=0;
-        for(int i=0;i<fieldNotes.length();i++){JSONObject n=fieldNotes.optJSONObject(i);if(branch.equals(n.optString("branch"))){TextView x=tv((n.optBoolean("done")?"✓ ":"• ")+n.optString("note")+"\n"+n.optString("person")+" • "+formatDate(n.optLong("checkAt")),14,n.optBoolean("done")?MUTED:TEXT,false);x.setPadding(0,dp(10),0,dp(8));box.addView(x);count++;}}
-        for(int i=controlCards.length()-1;i>=0;i--){JSONObject c=controlCards.optJSONObject(i);if(branch.equals(c.optString("branch"))){box.addView(controlCardView(c));count++;}}
-        if(count==0)box.addView(emptyState("Bu şubede kayıt yok."));
-        new AlertDialog.Builder(this).setView(wrapForm(box)).setPositiveButton("Kapat",null).show();
+    private void scheduleTaskAlarms(JSONObject o){
+        int id=o.optInt("id");
+        long due=o.optLong("due");
+        int days=o.optInt("remindDays",1);
+        AlarmUtils.schedule(this,id,due-days*24L*60*60*1000,"Dönüş yaklaşıyor",o.optString("title")+" • "+o.optString("person"));
+        AlarmUtils.schedule(this,id+100000,due,"Geri dönüş zamanı",o.optString("title")+" • "+o.optString("person"));
     }
 
-    private void markTaskDone(int id){for(int i=0;i<tasks.length();i++){JSONObject o=tasks.optJSONObject(i);if(o.optInt("id")==id){try{o.put("done",true);}catch(Exception ignored){}break;}}saveData();refreshCurrent();}
-    private void postponeTask(int id){for(int i=0;i<tasks.length();i++){JSONObject o=tasks.optJSONObject(i);if(o.optInt("id")==id){try{long d=o.optLong("due")+24L*60*60*1000;o.put("due",d);scheduleNotification(id,d-3L*60*60*1000,"Dönüş yaklaşıyor",o.optString("title")+" • "+o.optString("person"));}catch(Exception ignored){}break;}}saveData();refreshCurrent();}
-    private void markFieldDone(int id){for(int i=0;i<fieldNotes.length();i++){JSONObject o=fieldNotes.optJSONObject(i);if(o.optInt("id")==id){try{o.put("done",true);}catch(Exception ignored){}break;}}saveData();refreshCurrent();}
-    private void postponeField(int id){for(int i=0;i<fieldNotes.length();i++){JSONObject o=fieldNotes.optJSONObject(i);if(o.optInt("id")==id){try{long d=System.currentTimeMillis()+24L*60*60*1000;o.put("checkAt",d);scheduleNotification(id,d-3L*60*60*1000,"Saha kontrolü yaklaşıyor",o.optString("branch")+" • "+o.optString("note"));}catch(Exception ignored){}break;}}saveData();refreshCurrent();}
+    private void scheduleFieldAlarms(JSONObject o){
+        int id=o.optInt("id");
+        long at=o.optLong("checkAt");
+        AlarmUtils.schedule(this,id,at-24L*60*60*1000,"Saha kontrolü yarın",o.optString("branch")+" • "+o.optString("note"));
+        AlarmUtils.schedule(this,id+200000,at,"Saha kontrol zamanı",o.optString("branch")+" • "+o.optString("note"));
+    }
 
-    private void refreshCurrent(){ if(currentPage.equals("home"))showHome();else if(currentPage.equals("tasks"))showTasks();else if(currentPage.equals("field"))showField();else showBranches(); }
+    private void markTaskDone(int id){
+        for(int i=0;i<tasks.length();i++){JSONObject o=tasks.optJSONObject(i);if(o!=null&&o.optInt("id")==id){try{o.put("done",true);}catch(Exception ignored){}break;}}
+        AlarmUtils.cancel(this,id);AlarmUtils.cancel(this,id+100000);saveData();refreshCurrent();
+    }
 
-    private void pickDateTime(long[] target, TextView label, String prefix){
+    private void postponeTask(int id){
+        for(int i=0;i<tasks.length();i++){
+            JSONObject o=tasks.optJSONObject(i);
+            if(o!=null&&o.optInt("id")==id){
+                try{o.put("due",o.optLong("due")+24L*60*60*1000);scheduleTaskAlarms(o);}catch(Exception ignored){}
+                break;
+            }
+        }
+        saveData();refreshCurrent();
+    }
+
+    private void markFieldDone(int id){
+        for(int i=0;i<fieldNotes.length();i++){JSONObject o=fieldNotes.optJSONObject(i);if(o!=null&&o.optInt("id")==id){try{o.put("done",true);}catch(Exception ignored){}break;}}
+        AlarmUtils.cancel(this,id);AlarmUtils.cancel(this,id+200000);saveData();refreshCurrent();
+    }
+
+    private void postponeField(int id){
+        for(int i=0;i<fieldNotes.length();i++){
+            JSONObject o=fieldNotes.optJSONObject(i);
+            if(o!=null&&o.optInt("id")==id){
+                try{o.put("checkAt",System.currentTimeMillis()+24L*60*60*1000);scheduleFieldAlarms(o);}catch(Exception ignored){}
+                break;
+            }
+        }
+        saveData();refreshCurrent();
+    }
+
+    private void refreshCurrent(){
+        if("home".equals(currentPage))showHome();
+        else if("tasks".equals(currentPage))showTasks();
+        else showField();
+    }
+
+    private void pickDateTime(long[] target,TextView label,String prefix){
         Calendar c=Calendar.getInstance();c.setTimeInMillis(target[0]);
-        new DatePickerDialog(this,(view,y,m,d)->{Calendar cc=Calendar.getInstance();cc.setTimeInMillis(target[0]);cc.set(y,m,d);new TimePickerDialog(this,(tv,h,min)->{cc.set(Calendar.HOUR_OF_DAY,h);cc.set(Calendar.MINUTE,min);cc.set(Calendar.SECOND,0);target[0]=cc.getTimeInMillis();label.setText(prefix+formatDate(target[0]));},cc.get(Calendar.HOUR_OF_DAY),cc.get(Calendar.MINUTE),true).show();},c.get(Calendar.YEAR),c.get(Calendar.MONTH),c.get(Calendar.DAY_OF_MONTH)).show();
+        new DatePickerDialog(this,(v,y,m,d)->{
+            Calendar cc=Calendar.getInstance();cc.setTimeInMillis(target[0]);cc.set(y,m,d);
+            new TimePickerDialog(this,(tv,h,min)->{
+                cc.set(Calendar.HOUR_OF_DAY,h);cc.set(Calendar.MINUTE,min);cc.set(Calendar.SECOND,0);target[0]=cc.getTimeInMillis();
+                label.setText(prefix+formatDateLong(target[0]));
+            },cc.get(Calendar.HOUR_OF_DAY),cc.get(Calendar.MINUTE),true).show();
+        },c.get(Calendar.YEAR),c.get(Calendar.MONTH),c.get(Calendar.DAY_OF_MONTH)).show();
     }
 
-    private void createNotificationChannel(){if(Build.VERSION.SDK_INT>=26){NotificationChannel ch=new NotificationChannel(CHANNEL_ID,"Takip hatırlatmaları",NotificationManager.IMPORTANCE_HIGH);ch.setDescription("İş dönüşü ve saha kontrol hatırlatmaları");getSystemService(NotificationManager.class).createNotificationChannel(ch);}}
-    private void requestNotificationPermissionIfNeeded(){if(Build.VERSION.SDK_INT>=33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED) requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},REQ_NOTIF);}
-    private void scheduleNotification(int id,long when,String title,String body){if(when<=System.currentTimeMillis())when=System.currentTimeMillis()+5_000L;Intent i=new Intent(this,ReminderReceiver.class);i.putExtra("title",title);i.putExtra("body",body);i.putExtra("id",id);PendingIntent pi=PendingIntent.getBroadcast(this,id,i,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);AlarmManager am=(AlarmManager)getSystemService(ALARM_SERVICE);am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP,when,pi);}
+    private void createNotificationChannel(){
+        if(Build.VERSION.SDK_INT>=26){
+            NotificationChannel ch=new NotificationChannel(CHANNEL_ID,"Takip hatırlatmaları",NotificationManager.IMPORTANCE_HIGH);
+            ch.setDescription("İş ve saha hatırlatmaları");
+            ch.enableVibration(true);
+            ch.setLockscreenVisibility(android.app.Notification.VISIBILITY_PUBLIC);
+            getSystemService(NotificationManager.class).createNotificationChannel(ch);
+        }
+    }
 
-    private void loadData(){tasks=parseArray(prefs.getString("tasks","[]"));fieldNotes=parseArray(prefs.getString("fieldNotes","[]"));controlCards=parseArray(prefs.getString("controlCards","[]"));}
+    private void requestNotificationPermissionIfNeeded(){
+        if(Build.VERSION.SDK_INT>=33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)
+            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},REQ_NOTIF);
+    }
+
+    private boolean notificationSetupComplete(){
+        boolean post=Build.VERSION.SDK_INT<33 || checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)==PackageManager.PERMISSION_GRANTED;
+        boolean exact=true;
+        if(Build.VERSION.SDK_INT>=31){
+            AlarmManager am=(AlarmManager)getSystemService(ALARM_SERVICE);
+            exact=am!=null && am.canScheduleExactAlarms();
+        }
+        PowerManager pm=(PowerManager)getSystemService(POWER_SERVICE);
+        boolean battery=pm==null || pm.isIgnoringBatteryOptimizations(getPackageName());
+        return post && exact && battery;
+    }
+
+    private void openNotificationReliabilitySetup(){
+        if(Build.VERSION.SDK_INT>=33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED){
+            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},REQ_NOTIF);
+            return;
+        }
+        if(Build.VERSION.SDK_INT>=31){
+            AlarmManager am=(AlarmManager)getSystemService(ALARM_SERVICE);
+            if(am!=null && !am.canScheduleExactAlarms()){
+                try{
+                    Intent i=new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:"+getPackageName()));
+                    startActivity(i);return;
+                }catch(Exception ignored){}
+            }
+        }
+        PowerManager pm=(PowerManager)getSystemService(POWER_SERVICE);
+        if(pm!=null && !pm.isIgnoringBatteryOptimizations(getPackageName())){
+            try{
+                Intent i=new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,Uri.parse("package:"+getPackageName()));
+                startActivity(i);return;
+            }catch(Exception ignored){}
+        }
+        toast("Bildirim izinleri hazır.");
+        AlarmUtils.rescheduleAll(this);
+    }
+
+    private void loadData(){
+        tasks=parseArray(prefs.getString("tasks","[]"));
+        fieldNotes=parseArray(prefs.getString("fieldNotes","[]"));
+        controlCards=parseArray(prefs.getString("controlCards","[]"));
+    }
+
     private JSONArray parseArray(String s){try{return new JSONArray(s);}catch(Exception e){return new JSONArray();}}
     private void saveData(){prefs.edit().putString("tasks",tasks.toString()).putString("fieldNotes",fieldNotes.toString()).putString("controlCards",controlCards.toString()).apply();}
-    private int nextId(){return (int)(System.currentTimeMillis()%1000000000L);}
+    private int nextId(){return (int)(System.currentTimeMillis()%900000000L);}
 
     private void purgeLegacyDemoData(){
         if(!prefs.getBoolean("seeded",false)) return;
-        HashMap<Long,Integer> createdCounts=new HashMap<>();
-        for(int i=0;i<tasks.length();i++){
-            JSONObject o=tasks.optJSONObject(i); if(o==null) continue;
-            long created=o.optLong("created",-1); if(created>0) createdCounts.put(created,createdCounts.getOrDefault(created,0)+1);
-        }
-        for(int i=0;i<fieldNotes.length();i++){
-            JSONObject o=fieldNotes.optJSONObject(i); if(o==null) continue;
-            long created=o.optLong("created",-1); if(created>0) createdCounts.put(created,createdCounts.getOrDefault(created,0)+1);
-        }
-        HashSet<Long> demoTimes=new HashSet<>();
-        for(Map.Entry<Long,Integer> e:createdCounts.entrySet()) if(e.getValue()>=3) demoTimes.add(e.getKey());
-        boolean changed=false;
-        for(int i=tasks.length()-1;i>=0;i--){
-            JSONObject o=tasks.optJSONObject(i); if(o!=null && demoTimes.contains(o.optLong("created",-1))){tasks.remove(i);changed=true;}
-        }
-        for(int i=fieldNotes.length()-1;i>=0;i--){
-            JSONObject o=fieldNotes.optJSONObject(i); if(o!=null && demoTimes.contains(o.optLong("created",-1))){fieldNotes.remove(i);changed=true;}
-        }
-        if(changed) saveData();
+        tasks=new JSONArray();fieldNotes=new JSONArray();controlCards=new JSONArray();saveData();
         prefs.edit().remove("seeded").apply();
     }
 
-    private LinearLayout statCard(String label,String value,int color){LinearLayout c=baseCard();c.setGravity(Gravity.CENTER_VERTICAL);c.setMinimumHeight(dp(96));TextView v=tv(value,isNarrowScreen()?27:31,color,true);c.addView(v);TextView l=tv(label,isNarrowScreen()?12:13,MUTED,true);l.setPadding(0,dp(3),0,0);c.addView(l);return c;}
-    private LinearLayout baseCard(){LinearLayout c=new LinearLayout(this);c.setOrientation(LinearLayout.VERTICAL);c.setPadding(dp(15),dp(14),dp(15),dp(14));c.setBackground(roundRect(CARD,16));return c;}
+    private LinearLayout statCard(String label,int value,int color){
+        LinearLayout c=roundedCard(CARD,BORDER,18);
+        c.setPadding(dp(12),dp(14),dp(12),dp(12));
+        c.addView(tv(String.valueOf(value),26,color,true));
+        TextView l=tv(label,11,MUTED,true);l.setPadding(0,dp(3),0,0);c.addView(l);
+        return c;
+    }
+
+    private LinearLayout roundedCard(int fill,int stroke,int radius){
+        LinearLayout c=new LinearLayout(this);c.setOrientation(LinearLayout.VERTICAL);
+        c.setPadding(dp(16),dp(16),dp(16),dp(16));
+        GradientDrawable g=new GradientDrawable();g.setColor(fill);g.setCornerRadius(dp(radius));g.setStroke(dp(1),stroke);c.setBackground(g);
+        return c;
+    }
+
     private void addCard(View v){addMargins(v);content.addView(v);}
     private void addMargins(View v){LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.setMargins(0,0,0,dp(10));v.setLayoutParams(lp);}
-    private TextView badge(String s,int color){TextView b=tv(s,10,color,true);b.setPadding(dp(9),dp(5),dp(9),dp(5));b.setBackground(roundRect(adjustAlpha(color,0.12f),12));LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-2,-2);b.setLayoutParams(lp);return b;}
-    private int adjustAlpha(int color,float factor){return Color.argb(Math.round(255*factor),Color.red(color),Color.green(color),Color.blue(color));}
-    private GradientDrawable roundRect(int color,float radius){GradientDrawable g=new GradientDrawable();g.setColor(color);g.setCornerRadius(dp((int)radius));return g;}
-    private GradientDrawable outlineBg(int stroke){GradientDrawable g=new GradientDrawable();g.setColor(Color.WHITE);g.setCornerRadius(dp(13));g.setStroke(dp(1),stroke);return g;}
-    private Button primaryButton(String text,View.OnClickListener l){Button b=new Button(this);b.setText(text);b.setTextColor(Color.WHITE);b.setTextSize(13);b.setAllCaps(false);b.setBackground(roundRect(ACCENT,13));b.setOnClickListener(l);return b;}
-    private Button outlineButton(String text,View.OnClickListener l){Button b=new Button(this);b.setText(text);b.setTextColor(ACCENT);b.setTextSize(13);b.setAllCaps(false);b.setBackground(outlineBg(Color.rgb(211,216,232)));b.setOnClickListener(l);return b;}
-    private Button smallButton(String text,int color,View.OnClickListener l){Button b=new Button(this);b.setText(text);b.setTextColor(color);b.setTextSize(12);b.setAllCaps(false);b.setBackground(outlineBg(adjustAlpha(color,0.55f)));b.setOnClickListener(l);return b;}
-    private LinearLayout titleRow(String title,String button,View.OnClickListener listener){LinearLayout row=new LinearLayout(this);row.setOrientation(isNarrowScreen()?LinearLayout.VERTICAL:LinearLayout.HORIZONTAL);row.setGravity(isNarrowScreen()?Gravity.START:Gravity.CENTER_VERTICAL);TextView t=tv(title,isNarrowScreen()?22:25,TEXT,true);Button b=primaryButton(button,listener);if(isNarrowScreen()){row.addView(t,new LinearLayout.LayoutParams(-1,-2));Space s=new Space(this);row.addView(s,new LinearLayout.LayoutParams(1,dp(8)));row.addView(b,new LinearLayout.LayoutParams(-1,dp(44)));}else{row.addView(t,new LinearLayout.LayoutParams(0,-2,1));row.addView(b,new LinearLayout.LayoutParams(-2,dp(44)));}return row;}
-    private void sectionTitle(String s){TextView t=tv(s,16,TEXT,true);t.setPadding(0,dp(20),0,dp(9));content.addView(t);}
-    private TextView emptyState(String s){TextView t=tv(s,14,MUTED,false);t.setGravity(Gravity.CENTER);t.setPadding(dp(15),dp(18),dp(15),dp(18));t.setBackground(roundRect(Color.WHITE,15));LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.setMargins(0,0,0,dp(10));t.setLayoutParams(lp);return t;}
-    private LinearLayout dialogForm(){LinearLayout l=new LinearLayout(this);l.setOrientation(LinearLayout.VERTICAL);l.setPadding(dp(4),dp(4),dp(4),dp(6));return l;}
+
+    private TextView chip(String text,int bg,int fg){
+        TextView t=tv(text,13,fg,true);t.setGravity(Gravity.CENTER);t.setPadding(dp(13),dp(8),dp(13),dp(8));t.setBackground(roundRect(bg,18));return t;
+    }
+
+    private TextView smallTag(String text,int color){
+        TextView t=tv(text,10,color,true);t.setPadding(dp(9),dp(5),dp(9),dp(5));t.setBackground(roundRect(withAlpha(color,0.10f),12));return t;
+    }
+
+    private GradientDrawable roundRect(int color,int radius){
+        GradientDrawable g=new GradientDrawable();g.setColor(color);g.setCornerRadius(dp(radius));return g;
+    }
+
+    private int withAlpha(int color,float a){return Color.argb(Math.round(255*a),Color.red(color),Color.green(color),Color.blue(color));}
+
+    private Button primaryButton(String text,View.OnClickListener l){
+        Button b=new Button(this);b.setText(text);b.setTextColor(Color.WHITE);b.setTextSize(14);b.setAllCaps(false);b.setTypeface(Typeface.DEFAULT,Typeface.BOLD);b.setBackground(roundRect(DARK,16));b.setOnClickListener(l);return b;
+    }
+
+    private Button secondaryButton(String text,View.OnClickListener l){
+        Button b=new Button(this);b.setText(text);b.setTextColor(TEXT);b.setTextSize(14);b.setAllCaps(false);b.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
+        GradientDrawable g=new GradientDrawable();g.setColor(CARD);g.setCornerRadius(dp(16));g.setStroke(dp(1),BORDER);b.setBackground(g);b.setOnClickListener(l);return b;
+    }
+
+    private Button smallButton(String text,int color,View.OnClickListener l){
+        Button b=new Button(this);b.setText(text);b.setTextColor(color);b.setTextSize(12);b.setAllCaps(false);b.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
+        GradientDrawable g=new GradientDrawable();g.setColor(Color.WHITE);g.setCornerRadius(dp(14));g.setStroke(dp(1),withAlpha(color,0.35f));b.setBackground(g);b.setOnClickListener(l);return b;
+    }
+
+    private EditText wizardInput(String hint){
+        EditText e=new EditText(this);e.setHint(hint);e.setTextSize(16);e.setTextColor(TEXT);e.setHintTextColor(Color.rgb(157,157,150));
+        e.setPadding(dp(14),dp(13),dp(14),dp(13));
+        GradientDrawable g=new GradientDrawable();g.setColor(Color.rgb(250,250,247));g.setCornerRadius(dp(16));g.setStroke(dp(1),BORDER);e.setBackground(g);return e;
+    }
+
+    private LinearLayout dialogForm(){LinearLayout l=new LinearLayout(this);l.setOrientation(LinearLayout.VERTICAL);l.setPadding(dp(4),dp(4),dp(4),dp(8));return l;}
     private ScrollView wrapForm(LinearLayout form){ScrollView s=new ScrollView(this);s.setPadding(dp(16),0,dp(16),0);s.addView(form);return s;}
-    private EditText input(String hint){EditText e=new EditText(this);e.setHint(hint);e.setTextSize(14);e.setTextColor(TEXT);e.setHintTextColor(Color.rgb(150,158,174));e.setPadding(dp(12),dp(10),dp(12),dp(10));e.setBackground(outlineBg(Color.rgb(215,220,232)));return e;}
-    private TextView formLabel(String s){TextView t=tv(s,13,TEXT,true);t.setPadding(0,0,0,dp(6));return t;}
-    private Space space8(){Space s=new Space(this);s.setLayoutParams(new LinearLayout.LayoutParams(1,dp(8)));return s;}
-    private TextView tv(String s,float size,int color,boolean bold){TextView t=new TextView(this);t.setText(s);t.setTextSize(size);t.setTextColor(color);if(bold)t.setTypeface(Typeface.DEFAULT,Typeface.BOLD);t.setLineSpacing(0,1.05f);return t;}
-    private String formatDate(long ms){SimpleDateFormat f=new SimpleDateFormat("dd MMM, HH:mm",new Locale("tr","TR"));return f.format(new Date(ms));}
-    private boolean isNarrowScreen(){return getResources().getConfiguration().screenWidthDp < 380;}
+
+    private void sectionTitle(String s){TextView t=tv(s,15,TEXT,true);t.setPadding(0,dp(22),0,dp(10));content.addView(t);}
+
+    private TextView emptyState(String s){
+        TextView t=tv(s,14,MUTED,false);t.setGravity(Gravity.CENTER);t.setPadding(dp(16),dp(24),dp(16),dp(24));
+        GradientDrawable g=new GradientDrawable();g.setColor(CARD);g.setCornerRadius(dp(20));g.setStroke(dp(1),BORDER);t.setBackground(g);
+        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.setMargins(0,0,0,dp(10));t.setLayoutParams(lp);return t;
+    }
+
+    private TextView tv(String s,float size,int color,boolean bold){
+        TextView t=new TextView(this);t.setText(s);t.setTextSize(size);t.setTextColor(color);if(bold)t.setTypeface(Typeface.DEFAULT,Typeface.BOLD);t.setLineSpacing(0,1.08f);return t;
+    }
+
+    private void addGap(int d){Space s=new Space(this);content.addView(s,new LinearLayout.LayoutParams(1,dp(d)));}
+    private void addGap(LinearLayout parent,int d){Space s=new Space(this);parent.addView(s,new LinearLayout.LayoutParams(1,dp(d)));}
+
+    private String formatDateLong(long ms){return new SimpleDateFormat("d MMMM EEEE  •  HH:mm",new Locale("tr","TR")).format(new Date(ms));}
+    private String formatDue(long ms){
+        long diff=ms-System.currentTimeMillis();
+        if(diff<0)return "gecikti";
+        long days=(diff+24L*60*60*1000-1)/(24L*60*60*1000);
+        if(days<=1)return new SimpleDateFormat("bugün HH:mm",new Locale("tr","TR")).format(new Date(ms));
+        return days+" gün";
+    }
+
+    private boolean isNarrowScreen(){return getResources().getConfiguration().screenWidthDp<380;}
     private int dp(int n){return (int)(n*getResources().getDisplayMetrics().density+0.5f);}
     private void toast(String s){Toast.makeText(this,s,Toast.LENGTH_SHORT).show();}
+    private void hideKeyboard(){View v=getCurrentFocus();if(v!=null)((InputMethodManager)getSystemService(INPUT_METHOD_SERVICE)).hideSoftInputFromWindow(v.getWindowToken(),0);}
 }
