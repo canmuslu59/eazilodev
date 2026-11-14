@@ -48,7 +48,6 @@ public class MainActivity extends Activity {
         // Böylece bazı Android sürümlerinde oluşan açılış çökmesi engellenir.
         prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
         applyPalette();
-        updateSystemBars();
 
         createNotificationChannel();
         requestNotificationPermissionIfNeeded();
@@ -125,6 +124,7 @@ public class MainActivity extends Activity {
 
         applySystemBarInsets(root, header, nav);
         setContentView(root);
+        root.post(this::updateSystemBars);
     }
 
     private void applySystemBarInsets(View root, View header, View nav) {
