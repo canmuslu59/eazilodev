@@ -447,15 +447,24 @@ public class MainActivity extends Activity {
     private int nextId(){return (int)(System.currentTimeMillis()%1000000000L);}
 
     private void purgeLegacyDemoData(){
+        if(!prefs.getBoolean("seeded",false)) return;
+        HashMap<Long,Integer> createdCounts=new HashMap<>();
+        for(int i=0;i<tasks.length();i++){
+            JSONObject o=tasks.optJSONObject(i); if(o==null) continue;
+            long created=o.optLong("created",-1); if(created>0) createdCounts.put(created,createdCounts.getOrDefault(created,0)+1);
+        }
+        for(int i=0;i<fieldNotes.length();i++){
+            JSONObject o=fieldNotes.optJSONObject(i); if(o==null) continue;
+            long created=o.optLong("created",-1); if(created>0) createdCounts.put(created,createdCounts.getOrDefault(created,0)+1);
+        }
+        HashSet<Long> demoTimes=new HashSet<>();
+        for(Map.Entry<Long,Integer> e:createdCounts.entrySet()) if(e.getValue()>=3) demoTimes.add(e.getKey());
         boolean changed=false;
         for(int i=tasks.length()-1;i>=0;i--){
-            JSONObject o=tasks.optJSONObject(i); if(o==null) continue;
-            String title=o.optString("title");
-            if(title.equals("Haftalık stok fark raporu")||title.equals("Vitrin uygulama teyidi")){ tasks.remove(i); changed=true; }
+            JSONObject o=tasks.optJSONObject(i); if(o!=null && demoTimes.contains(o.optLong("created",-1))){tasks.remove(i);changed=true;}
         }
         for(int i=fieldNotes.length()-1;i>=0;i--){
-            JSONObject o=fieldNotes.optJSONObject(i); if(o==null) continue;
-            if(o.optString("branch").equals("Kanyon") && o.optString("note").equals("Depo düzeni yeniden kontrol edilecek")){ fieldNotes.remove(i); changed=true; }
+            JSONObject o=fieldNotes.optJSONObject(i); if(o!=null && demoTimes.contains(o.optLong("created",-1))){fieldNotes.remove(i);changed=true;}
         }
         if(changed) saveData();
         prefs.edit().remove("seeded").apply();
