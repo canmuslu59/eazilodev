@@ -5,7 +5,8 @@ import android.app.*;
 import android.content.*;
 import android.content.pm.PackageManager;
 import android.graphics.*;
-import android.graphics.drawable.GradientDrawable;\nimport android.graphics.drawable.StateListDrawable;
+import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.StateListDrawable;
 import android.net.Uri;
 import android.os.*;
 import android.provider.MediaStore;
@@ -35,7 +36,9 @@ public class MainActivity extends Activity {
     private final int GREEN = Color.rgb(38, 137, 91);
     private final int RED = Color.rgb(196, 64, 57);
     private final int AMBER = Color.rgb(174, 111, 31);
-    private final int BLUE = Color.rgb(69, 95, 184);\n    private final int SAFETY = Color.rgb(38, 91, 174);\n    private final int SAFETY_DARK = Color.rgb(27, 67, 132);
+    private final int BLUE = Color.rgb(69, 95, 184);
+    private final int SAFETY = Color.rgb(38, 91, 174);
+    private final int SAFETY_DARK = Color.rgb(27, 67, 132);
 
     private SharedPreferences prefs;
     private JSONArray tasks = new JSONArray();
